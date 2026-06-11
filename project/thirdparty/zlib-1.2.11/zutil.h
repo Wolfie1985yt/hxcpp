@@ -137,11 +137,13 @@ extern z_const char * const z_errmsg[10]; /* indexed by 2-zlib_error */
 #      include <unix.h> /* for fdopen */
 #    else
 #      ifndef fdopen
-#        define fdopen(fd,mode) NULL /* No fdopen() */
+#        ifndef __APPLE__  /* <--- ADD THIS LINE */
+#          define fdopen(fd,mode) NULL /* No fdopen() */
+#        endif             /* <--- ADD THIS LINE */
 #      endif
 #    endif
-#  endif
-#endif
+#  endif /* !Z_SOLO */
+#endif /* defined(MACOS) || defined(TARGET_OS_MAC) */
 
 #ifdef __acorn
 #  define OS_CODE 13
