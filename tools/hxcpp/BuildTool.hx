@@ -1444,13 +1444,13 @@ class BuildTool
       Log.v('copy $from $to');
 
       try {
-         if (FileSystem.isDirectory(to))
+         if (FileSystem.exists(to) && FileSystem.isDirectory(to))
             to += "/" + Path.withoutDirectory(from);
          var bytes = sys.io.File.getBytes(from);
          sys.io.File.saveBytes(to,bytes);
       } catch(e:Dynamic)
       {
-         Log.error('Could not copy file $from $to');
+         Log.error('Could not copy file $from $to : ' + Std.string(e));
       }
    }
 
