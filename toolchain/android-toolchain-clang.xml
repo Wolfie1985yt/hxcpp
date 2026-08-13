@@ -40,7 +40,9 @@
 
   <exe name="clang++" />
   <flag value="--target=${EXEPREFIX}${PLATFORM_NUMBER}" />
-  
+  <flag value="-march=armv7-a" if="HXCPP_ARMV7" />
+  <cppflag value="-std=c++20" />
+
   <!-- File Related -->
   <include name="toolchain/common-defines.xml" />
   <flag value="-I${HXCPP}/include"/>
