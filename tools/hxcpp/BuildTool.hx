@@ -2170,7 +2170,11 @@ class BuildTool
                   var ver = extract_version.matched(1);
                   var split_best = best.split(".");
                   var split_ver = ver.split(".");
-                  if (Std.parseFloat(split_ver[0]) > Std.parseFloat(split_best[0]) || Std.parseFloat(split_ver[1]) > Std.parseFloat(split_best[1]))
+                  var majorBest = Std.parseFloat(split_best[0]);
+                  var minorBest = split_best.length>1 ? Std.parseFloat(split_best[1]) : 0;
+                  var majorVer = Std.parseFloat(split_ver[0]);
+                  var minorVer = split_ver.length>1 ? Std.parseFloat(split_ver[1]) : 0;
+                  if (majorVer > majorBest || (majorVer == majorBest && minorVer > minorBest))
                      best = ver;
                }
             }
