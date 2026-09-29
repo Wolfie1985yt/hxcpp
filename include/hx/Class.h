@@ -33,7 +33,7 @@ template<>
 inline hx::Class &ClassOf<String>() { return GetStringClass(); }
 
 template<>
-inline hx::Class &ClassOf<::cpp::Int64>() { return GetInt64Class(); }
+inline hx::Class &ClassOf< ::cpp::Int64>() { return GetInt64Class(); }
 
 
 template<typename T>
@@ -125,7 +125,7 @@ public:
              #endif
              );
 
-   String __ToString() const;
+   String __ToString() const HXCPP_OVERRIDE;
 
    void MarkStatics(hx::MarkContext *__inCtx);
 
@@ -136,22 +136,22 @@ public:
    static ::Array< ::String > dupFunctions(String inStatics[]);
 
    // the "Class class"
-   hx::Class              __GetClass() const;
+   hx::Class              __GetClass() const HXCPP_OVERRIDE;
    static hx::Class      & __SGetClass();
 	static void       __boot();
 
-   hx::Val __Field(const String &inString ,hx::PropertyAccess inCallProp);
+   hx::Val __Field(const String &inString,hx::PropertyAccess inCallProp) HXCPP_OVERRIDE;
 
-   hx::Val __SetField(const String &inString,const hx::Val &inValue ,hx::PropertyAccess inCallProp);
+   hx::Val __SetField(const String &inString,const hx::Val &inValue ,hx::PropertyAccess inCallProp) HXCPP_OVERRIDE;
 
-   bool __HasField(const String &inString);
+   bool __HasField(const String &inString) HXCPP_OVERRIDE;
 
    virtual Dynamic ConstructEmpty();
    virtual Dynamic ConstructArgs(hx::DynamicArray inArgs);
    virtual Dynamic ConstructEnum(String inName,hx::DynamicArray inArgs);
    virtual bool VCanCast(hx::Object *inPtr) { return false; }
 
-   int __GetType() const { return vtObject; }
+   int __GetType() const HXCPP_OVERRIDE { return vtObject; }
 
    virtual bool __IsEnum();
 
@@ -266,28 +266,15 @@ inline void RegisterClass(const String &inClassName, hx::Class inClass)
 template<typename T>
 inline bool TCanCast(hx::Object *inPtr)
 {
-	return inPtr && (
-                  #if (HXCPP_API_LEVEL >= 332)
-                     inPtr->_hx_isInstanceOf(T::_hx_ClassId)
-                  #elif (HXCPP_API_LEVEL==331)
-                     dynamic_cast<T *>(inPtr)
-                  #else
-                     dynamic_cast<T *>(inPtr->__GetRealObject())
-                     #if (HXCPP_API_LEVEL < 330)
-                     || inPtr->__ToInterface(typeid(T))
-                     #endif
-                  #endif
-                  );
+	return inPtr && inPtr->_hx_isInstanceOf(T::_hx_ClassId);
 }
 
 
-#if (HXCPP_API_LEVEL >= 330)
 template<int HASH>
 inline bool TIsInterface(hx::Object *inPtr)
 {
 	return inPtr && inPtr->_hx_getInterface(HASH);
 }
-#endif
 
 
 HXCPP_EXTERN_CLASS_ATTRIBUTES void RegisterVTableOffset(int inOffset);
@@ -296,7 +283,7 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES void RegisterVTableOffset(int inOffset);
 { \
    CLASS *dummy = (CLASS *)0; \
    INTERFACE *intf = dummy; \
-   hx::RegisterVTableOffset( (int)( (size_t)((char *)intf - (char *)dummy)) ); \
+   ::hx::RegisterVTableOffset( (int)( (size_t)((char *)intf - (char *)dummy)) ); \
 }
 
 

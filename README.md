@@ -1,3 +1,11 @@
+# FunkinCrew HXCPP for Nintendo Switch
+
+This hxcpp by FunkinCrew port for Nintendo Switch is based on commit `0376e9b`
+
+To use this, please see the guide on [Funkin-NX](https://github.com/Slushi-Github/funkin-nx)
+
+----
+
 # hxcpp
 
 [![Build Status](https://dev.azure.com/HaxeFoundation/GitHubPublic/_apis/build/status/HaxeFoundation.hxcpp?branchName=master)](https://dev.azure.com/HaxeFoundation/GitHubPublic/_build/latest?definitionId=3&branchName=master)

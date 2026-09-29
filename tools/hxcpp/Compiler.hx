@@ -1,6 +1,15 @@
 import haxe.crypto.Md5;
 import haxe.io.Path;
 import sys.FileSystem;
+#if haxe4
+import sys.thread.Mutex;
+#elseif cpp
+import cpp.vm.Mutex;
+#else
+import neko.vm.Mutex;
+#end
+
+using StringTools;
 
 private class FlagInfo
 {
@@ -26,6 +35,13 @@ private class FlagInfo
    }
 }
 
+enum Language {
+   C;
+   Cxx;
+   ObjC;
+   ObjCxx;
+}
+
 class Compiler
 {
    private var mFlags:Array<FlagInfo>;
@@ -35,8 +51,10 @@ class Compiler
    public var mCPPFlags:Array<String>;
    public var mOBJCFlags:Array<String>;
    public var mPCHFlags:Array<String>;
+   public var mAsmFlags:Array<String>;
    public var mAddGCCIdentity:Bool;
    public var mExe:String;
+   public var mAsmExe:String;
    public var mOutFlag:String;
    public var mObjDir:String;
    public var mRelObjDir:String;
@@ -72,18 +90,16 @@ class Compiler
       mOBJCFlags = [];
       mMMFlags = [];
       mPCHFlags = [];
+      mAsmFlags = [];
       mAddGCCIdentity = false;
       mCompilerVersion = null;
       mRcExt = ".res";
       mObjDir = "obj";
       mOutFlag = "-o";
       mExe = inExe;
+      mAsmExe = inExe;
       mID = inID;
       mExt = ".o";
-      mPCHExt = ".pch";
-      mPCHCreate = "-Yc";
-      mPCHUse = "-Yu";
-      mPCHFilename = "/Fp";
       mCached = false;
       mRcFlags = [];
    }
@@ -126,15 +142,21 @@ class Compiler
 
    function addIdentity(ext:String,ioArgs:Array<String>)
    {
+      var lang = switch ext {
+         case "c": C;
+         case "m": ObjC;
+         case "mm": ObjCxx;
+         case "cpp", "c++", "cc", "cxx": Cxx;
+         default: null;
+      }
       if (mAddGCCIdentity)
       {
-         var identity = switch(ext)
+         var identity = switch (lang)
            {
-              case "c" : "c";
-              case "m" : "objective-c";
-              case "mm" : "objective-c++";
-              case "cpp" : "c++";
-              case "c++" : "c++";
+              case C : "c";
+              case ObjC : "objective-c";
+              case ObjCxx : "objective-c++";
+              case Cxx : "c++";
               default:"";
          }
          if (identity!="")
@@ -143,6 +165,49 @@ class Compiler
             ioArgs.push(identity);
          }
       }
+      return lang;
+   }
+
+   function addStandard(lang: Language, inFile: {
+		var mCStandard:Null<Int>;
+		var mCxxStandard:Null<Int>;
+		var mObjCStandard:Null<Int>;
+		var mObjCxxStandard:Null<Int>;
+   }, args:Array<String>) {
+		switch (lang) {
+			case C:
+				if (inFile.mCStandard != null) {
+					if (BuildTool.isMsvc()) {
+						if (inFile.mCStandard > 17) {
+							args.push('/std:clatest');
+						} else if (inFile.mCStandard >= 11) {
+							args.push('/std:c${inFile.mCStandard}');
+						}
+					} else {
+						args.push('-std=c${inFile.mCStandard}');
+					}
+				}
+			case ObjC:
+				if (inFile.mObjCStandard != null) {
+					args.push('-std=c${inFile.mObjCStandard}');
+				}
+			case ObjCxx:
+				if (inFile.mObjCxxStandard != null) {
+					args.push('-std=c++${inFile.mObjCxxStandard}');
+				}
+			case Cxx:
+				if (inFile.mCxxStandard != null) {
+					if (BuildTool.isMsvc()) {
+						if (inFile.mCxxStandard > 20) {
+							args.push('/std:c++latest');
+						} else if (inFile.mCxxStandard >= 14) {
+							args.push('/std:c++${inFile.mCxxStandard}');
+						}
+					} else {
+						args.push('-std=c++${inFile.mCxxStandard}');
+					}
+				}
+		}
    }
 
    function addOptimTags(tagFilter:Array<String>)
@@ -169,15 +234,16 @@ class Compiler
       return args;
    }
 
-   function getArgs(inFile:File)
+   public function getArgs(inFile:File)
    {
       var nvcc = inFile.isNvcc();
+      var asm = inFile.isAsm();
       var isRc = mRcExe!=null && inFile.isResource();
       var args = nvcc ? inFile.mGroup.mCompilerFlags.concat( BuildTool.getNvccFlags() ) :
                        inFile.mCompilerFlags.concat(inFile.mGroup.mCompilerFlags);
       var tagFilter = inFile.getTags().split(",");
       addOptimTags(tagFilter);
-      if (!isRc)
+      if (!isRc && !asm)
          for(flag in mFlags)
             flag.add(args,tagFilter);
       var ext = mExt.toLowerCase();
@@ -188,10 +254,15 @@ class Compiler
          Log.error("Unkown extension for " + inFile.mName);
 
 
-      addIdentity(ext,args);
-
+      var lang = addIdentity(ext,args);
+      if (lang != null) {
+         addStandard(lang, inFile, args);
+      }
       var allowPch = false;
-      if (nvcc)
+
+      if (asm)
+         args = args.concat(mAsmFlags);
+      else if (nvcc)
          args = args.concat(mNvccFlags);
       else if (isRc)
          args = args.concat(mRcFlags);
@@ -213,13 +284,16 @@ class Compiler
       if (inFile.mGroup.isPrecompiled() && allowPch)
       {
          var pchDir = getPchDir(inFile.mGroup);
-         if (mPCHUse!="")
-         {
-            args.push(mPCHUse + inFile.mGroup.mPrecompiledHeader + ".h");
-            args.push(mPCHFilename + pchDir + "/" + inFile.mGroup.getPchName() + mPCHExt);
+         switch (mPCH) {
+            case "msvc":
+               args.push(mPCHUse + inFile.mGroup.mPrecompiledHeader + ".h");
+               args.push(mPCHFilename + pchDir + "/" + inFile.mGroup.getPchName() + mPCHExt);
+            case "gcc":
+               args.unshift("-I"+pchDir);
+            case "clang":
+               args.push("-include-pch");
+               args.push(pchDir + "/" + inFile.mGroup.getPchName() + mPCHExt);
          }
-         else
-            args.unshift("-I"+pchDir);
       }
 
       return args;
@@ -292,12 +366,16 @@ class Compiler
       catch(e:Dynamic) { }
    }
 
-   public function compile(inFile:File,inTid:Int,headerFunc:Void->Void,pchTimeStamp:Null<Float>)
+   static public var printMutex = new Mutex();
+
+   public function compile(inFile:File,inTid:Int,headerFunc:Void->Void,pchTimeStamp:Null<Float>,inProgress:Null<Progress>)
    {
       var obj_name = getObjName(inFile);
       var args = getArgs(inFile);
       var nvcc = inFile.isNvcc();
-      var exe = nvcc ? BuildTool.getNvcc() : mExe;
+      var asm = inFile.isAsm();
+      var exe = asm ? inFile.getAsmExe(mAsmExe) : nvcc ? BuildTool.getNvcc() : mExe;
+      var nasm = asm && (exe.endsWith("nasm") || exe.endsWith("nasm.exe"));
       var isRc =  mRcExe!=null && inFile.isResource();
       if (isRc)
          exe = mRcExe;
@@ -359,7 +437,7 @@ class Compiler
                args.push( (new Path( inFile.mDir + inFile.mName)).toString() );
          }
 
-         var out = nvcc ? "-o " : mOutFlag;
+         var out = (nvcc||nasm) ? "-o " : mOutFlag;
          if (out.substr(-1)==" ")
          {
             args.push(out.substr(0,out.length-1));
@@ -371,29 +449,44 @@ class Compiler
          if (delayedFilename!=null)
            args.push(delayedFilename);
 
-         var tagInfo = inFile.mTags==null ? "" : " " + inFile.mTags.split(",");
-
-         var fileName = inFile.mName;
-         var split = fileName.split ("/");
-         if (split.length > 1)
+         if (!Log.verbose && (inTid >= 0 && BuildTool.threadExitCode == 0))
          {
-            fileName = " \x1b[2m-\x1b[0m \x1b[33m" + split.slice(0, split.length - 1).join("/") + "/\x1b[33;1m" + split[split.length - 1] + "\x1b[0m";
-         }
-         else
-         {
-            fileName = " \x1b[2m-\x1b[0m \x1b[33;1m" + fileName + "\x1b[0m";
-         }
-         fileName += " \x1b[3m" + tagInfo + "\x1b[0m";
+            printMutex.acquire();
 
+            var tagInfo = inFile.mTags == null ? "" : "\x1b[3m" + inFile.mTags.split(",") + "\x1b[0m";
+            var fileName = inFile.mName;
+            var split = fileName.split("/");
+
+            if (split.length > 1)
+            {
+               fileName = split.slice(0, split.length - 1).join("/") + "/";
+               fileName = "\x1b[33m" + fileName + "\x1b[33;1m" + split[split.length - 1] + "\x1b[0m";
+            }
+            else
+            {
+               fileName = "\x1b[33;1m" + fileName + "\x1b[0m";
+            }
+
+            var output = "";
+
+            if (inProgress != null)
+            {
+                inProgress.current++;
+
+                output = ['-', inProgress.getFormattedProgress(), fileName, tagInfo].join(" ");
+            }
+            else
+               output = ['-', fileName, tagInfo].join(" ");
+
+            Log.info(output);
+
+            printMutex.release();
+         }
 
          if (inTid >= 0)
          {
             if (BuildTool.threadExitCode == 0)
             {
-               if (!Log.verbose)
-               {
-                  Log.info(fileName);
-               }
                var err = ProcessManager.runProcessThreaded(exe, args, null);
                cleanTmp(tmpFile);
                if (err!=0)
@@ -406,10 +499,6 @@ class Compiler
          }
          else
          {
-            if (!Log.verbose)
-            {
-               Log.info(fileName);
-            }
             var result = ProcessManager.runProcessThreaded(exe, args, null);
             cleanTmp(tmpFile);
             if (result!=0)
@@ -431,7 +520,7 @@ class Compiler
       return obj_name;
    }
 
-   public function createCompilerVersion(inGroup:FileGroup)
+   public function createCompilerVersion()
    {
       if ( mCompilerVersion==null)
       {
@@ -506,7 +595,7 @@ class Compiler
 
    public function needsPchObj()
    {
-      return mPCH!="gcc";
+      return mPCH == "msvc";
    }
 
 /*
@@ -557,18 +646,19 @@ class Compiler
       if (inGroup.isCached() || inReuseIfPossible)
       {
           // No obj needed for gcc
-          var obj = mPCH=="gcc" ? null : PathManager.combine(dir, file + mExt);
+          var obj = mPCH=="msvc" ? PathManager.combine(dir, file + mExt) : null;
           if (FileSystem.exists(pch_name) && (obj==null || FileSystem.exists(obj)) )
              return obj;
       }
 
       args = args.concat( mPCHFlags );
 
+		addStandard(Cxx, inGroup, args);
 
       //Log.info("", "Make pch dir " + dir );
       PathManager.mkdir(dir);
 
-      if (mPCH!="gcc")
+      if (mPCH == "msvc")
       {
          args.push( mPCHCreate + header + ".h" );
          var symbol = "link" + Md5.encode( PathManager.combine(dir, file + mExt) );
@@ -616,7 +706,7 @@ class Compiler
          //throw "Error creating pch: " + result + " - build cancelled";
       }
 
-      if (mPCH!="gcc")
+      if (mPCH == "msvc")
          return  PathManager.combine(dir, file + mExt);
       return null;
    }
@@ -624,11 +714,27 @@ class Compiler
    public function setPCH(inPCH:String)
    {
       mPCH = inPCH;
-      if (mPCH=="gcc")
-      {
-         mPCHExt = ".h.gch";
-         mPCHUse = "";
-         mPCHFilename = "";
+      createCompilerVersion();
+      static final regex = ~/clang/i;
+      if (inPCH != null && regex.match(mCompilerVersionString)) {
+         mPCH = "clang";
+      }
+      switch (mPCH) {
+         case "gcc":
+            mPCHExt = ".h.gch";
+            mPCHUse = "";
+            mPCHFilename = "";
+         case "clang":
+            mPCHExt = ".h.pch";
+            mPCHUse = "";
+            mPCHFilename = "";
+         case "msvc":
+            mPCHExt = ".pch";
+            mPCHCreate = "-Yc";
+            mPCHUse = "-Yu";
+            mPCHFilename = "/Fp";
+         default:
+            mPCH = null;
       }
    }
 

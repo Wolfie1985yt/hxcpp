@@ -53,7 +53,7 @@
 #define NEKO_EXT "dylib"
 
 #else
-#if defined(EMSCRIPTEN)
+#if defined(__EMSCRIPTEN__)
 #define EXT "ll"
 #else
 #define EXT "so"
@@ -61,7 +61,9 @@
 
 #endif
 
+#if !defined(HX_HX)
 #include <dlfcn.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -127,7 +129,7 @@ extern "C" ret name def_args;
    struct DynAlloc : public hx::IStringAlloc
    {
       #define WANT_DYNALLOC_ALLOC_BYTES
-      void *allocBytes(size_t n);
+      void *allocBytes(size_t n) HXCPP_OVERRIDE;
    };
 
 

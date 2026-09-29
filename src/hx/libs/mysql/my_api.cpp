@@ -15,6 +15,21 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <stdio.h>
 #include "my_proto.h"
 
+#if defined(__NX__)
+char *strdup(const char *s)
+{
+	size_t slen = strlen(s);
+	char *result = malloc(slen + 1);
+	if (result == NULL)
+	{
+		return NULL;
+	}
+
+	memcpy(result, s, slen + 1);
+	return result;
+}
+#endif
+
 static void error( MYSQL *m, const char *err, const char *param ) {
 	if( param ) {
 		unsigned int max = MAX_ERR_SIZE - (strlen(err) + 3);
@@ -25,12 +40,12 @@ static void error( MYSQL *m, const char *err, const char *param ) {
 			p2[max - 2] = '.';
 			p2[max - 1] = '.';
 			p2[max] = 0;
-			sprintf(m->last_error,err,param);
+			snprintf(m->last_error,sizeof(m->last_error),err,param);
 			free(p2);
 			return;
 		}
 	}
-	sprintf(m->last_error,err,param);
+	snprintf(m->last_error,sizeof(m->last_error),err,param);
 	m->errcode = -1;
 }
 
@@ -408,7 +423,7 @@ const char *mysql_character_set_name( MYSQL *m ) {
 	const char *name = myp_charset_name(m->infos.server_charset);
 	if( name == NULL ) {
 		static char tmp[512];
-		sprintf(tmp,"#%d",m->infos.server_charset);
+		snprintf(tmp,sizeof(tmp),"#%d",m->infos.server_charset);
 		return tmp;
 	}
 	return name;

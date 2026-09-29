@@ -14,8 +14,16 @@ typedef int SOCKET;
 #include <hxcpp.h>
 #include <hx/OS.h>
 
-#if defined(NEKO_MAC) && !defined(IPHONE) && !defined(APPLETV)
+#if defined(NEKO_MAC) || defined(IPHONE) || defined(APPLETV)
 #include <Security/Security.h>
+#endif
+#if defined(IPHONE) || defined(APPLETV)
+#include <CoreFoundation/CoreFoundation.h>
+#endif
+
+#if defined(HX_NX)
+#include <switch.h>
+#include <stdlib.h>
 #endif
 
 typedef size_t socket_int;
@@ -73,7 +81,7 @@ struct sslctx : public hx::Object
 		((sslctx *)(obj.mPtr))->destroy();
 	}
 
-	String toString() { return HX_CSTRING("sslctx"); }
+	String toString() HXCPP_OVERRIDE { return HX_CSTRING("sslctx"); }
 };
 
 struct sslconf : public hx::Object
@@ -104,7 +112,7 @@ struct sslconf : public hx::Object
 		((sslconf *)(obj.mPtr))->destroy();
 	}
 
-	String toString() { return HX_CSTRING("sslconfig"); }
+	String toString() HXCPP_OVERRIDE { return HX_CSTRING("sslconfig"); }
 };
 
 struct sslcert : public hx::Object
@@ -144,7 +152,7 @@ struct sslcert : public hx::Object
 		((sslcert *)(obj.mPtr))->destroy();
 	}
 
-	String toString() { return HX_CSTRING("sslcert"); }
+	String toString() HXCPP_OVERRIDE { return HX_CSTRING("sslcert"); }
 };
 
 struct sslpkey : public hx::Object
@@ -175,22 +183,25 @@ struct sslpkey : public hx::Object
 		((sslpkey *)(obj.mPtr))->destroy();
 	}
 
-	String toString() { return HX_CSTRING("sslpkey"); }
+	String toString() HXCPP_OVERRIDE { return HX_CSTRING("sslpkey"); }
 };
 
 static mbedtls_entropy_context entropy;
 static mbedtls_ctr_drbg_context ctr_drbg;
 
+static bool is_ssl_blocking( int r ) {
+	return r == MBEDTLS_ERR_SSL_WANT_READ || r == MBEDTLS_ERR_SSL_WANT_WRITE;
+}
 
-static void block_error() {
+static bool is_block_error() {
 	#ifdef NEKO_WINDOWS
 	int err = WSAGetLastError();
 	if( err == WSAEWOULDBLOCK || err == WSAEALREADY || err == WSAETIMEDOUT )
 	#else
 	if( errno == EAGAIN || errno == EWOULDBLOCK || errno == EINPROGRESS || errno == EALREADY )
 	#endif
-		hx::Throw(HX_CSTRING("Blocking"));
-	hx::Throw(HX_CSTRING("ssl network error"));
+		return true;
+	return false;
 }
 
 static void ssl_error( int ret ){
@@ -225,9 +236,12 @@ void _hx_ssl_handshake( Dynamic hssl ) {
 	sslctx *ssl = val_ssl(hssl);
 	POSIX_LABEL(handshake_again);
 	r = mbedtls_ssl_handshake( ssl->s );
-	if( r == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(r) ) {
 		HANDLE_EINTR(handshake_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( r == SOCKET_ERROR ) {
+		HANDLE_EINTR(handshake_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}else if( r != 0 )
 		ssl_error(r);
 }
@@ -235,6 +249,8 @@ void _hx_ssl_handshake( Dynamic hssl ) {
 int net_read( void *fd, unsigned char *buf, size_t len ){
 	hx::EnterGCFreeZone();
 	int r = recv((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+ 	if( r == SOCKET_ERROR && is_block_error() )
+ 		r = MBEDTLS_ERR_SSL_WANT_READ;
 	hx::ExitGCFreeZone();
 	return r;
 }
@@ -242,6 +258,8 @@ int net_read( void *fd, unsigned char *buf, size_t len ){
 int net_write( void *fd, const unsigned char *buf, size_t len ){
 	hx::EnterGCFreeZone();
 	int r = send((SOCKET)(socket_int)fd, (char *)buf, len, 0);
+	if( r == SOCKET_ERROR && is_block_error() )
+ 		r = MBEDTLS_ERR_SSL_WANT_WRITE;
 	hx::ExitGCFreeZone();
 	return r;
 }
@@ -297,9 +315,12 @@ int _hx_ssl_send( Dynamic hssl, Array<unsigned char> buf, int p, int l ) {
 	POSIX_LABEL(send_again);
 	const unsigned char *base = (const unsigned char *)&buf[0];
 	dlen = mbedtls_ssl_write( ssl->s, base + p, l );
-	if( dlen == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(dlen) ) {
 		HANDLE_EINTR(send_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( dlen == SOCKET_ERROR ) {
+		HANDLE_EINTR(send_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}
 	return dlen;
 }
@@ -311,9 +332,12 @@ void _hx_ssl_write( Dynamic hssl, Array<unsigned char> buf ) {
 	while( len > 0 ) {
 		POSIX_LABEL( write_again );
 		int slen = mbedtls_ssl_write( ssl->s, cdata, len );
-		if( slen == SOCKET_ERROR ) {
+		if ( is_ssl_blocking(slen) ) {
 			HANDLE_EINTR( write_again );
-			block_error();
+			hx::Throw(HX_CSTRING("Blocking"));
+		}else if( slen == SOCKET_ERROR ) {
+			HANDLE_EINTR( write_again );
+			hx::Throw(HX_CSTRING("ssl network error"));
 		}
 		cdata += slen;
 		len -= slen;
@@ -338,9 +362,12 @@ int _hx_ssl_recv( Dynamic hssl, Array<unsigned char> buf, int p, int l ) {
 	unsigned char *base = &buf[0];
 	POSIX_LABEL(recv_again);
 	dlen = mbedtls_ssl_read( ssl->s, base + p, l );
-	if( dlen == SOCKET_ERROR ) {
+	if ( is_ssl_blocking(dlen) ) {
 		HANDLE_EINTR(recv_again);
-		block_error();
+		hx::Throw(HX_CSTRING("Blocking"));
+	}else if( dlen == SOCKET_ERROR ) {
+		HANDLE_EINTR(recv_again);
+		hx::Throw(HX_CSTRING("ssl network error"));
 	}
 	if( dlen < 0 ) {  
                 if( dlen == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY ) {
@@ -360,9 +387,12 @@ Array<unsigned char> _hx_ssl_read( Dynamic hssl ) {
 	while( true ) {
 		POSIX_LABEL(read_again);
 		int len = mbedtls_ssl_read( ssl->s, buf, 256 );
-		if( len == SOCKET_ERROR ) {
+		if ( is_ssl_blocking(len) ) {
 			HANDLE_EINTR(read_again);
-			block_error();
+			hx::Throw(HX_CSTRING("Blocking"));
+		}else if( len == SOCKET_ERROR ) {
+			HANDLE_EINTR(read_again);
+			hx::Throw(HX_CSTRING("ssl network error"));
 		}
                 if( len == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY ) {
                   mbedtls_ssl_close_notify( ssl->s );
@@ -375,6 +405,81 @@ Array<unsigned char> _hx_ssl_read( Dynamic hssl ) {
 	return result;
 }
 
+#ifdef NEKO_WINDOWS
+static int verify_callback(void* param, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
+	if (*flags == 0 || *flags & MBEDTLS_X509_BADCERT_CN_MISMATCH) {
+		return 0;
+	}
+
+	HCERTSTORE store = CertOpenStore(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG, NULL);
+	if(store == NULL) {
+		return MBEDTLS_ERR_X509_FATAL_ERROR;
+	}
+	PCCERT_CONTEXT primary_context = {0};
+	if(!CertAddEncodedCertificateToStore(store, X509_ASN_ENCODING, crt->raw.p, crt->raw.len, CERT_STORE_ADD_REPLACE_EXISTING, &primary_context)) {
+		CertCloseStore(store, 0);
+		return MBEDTLS_ERR_X509_FATAL_ERROR;
+	}
+	PCCERT_CHAIN_CONTEXT chain_context = {0};
+	CERT_CHAIN_PARA parameters = {0};
+	if(!CertGetCertificateChain(NULL, primary_context, NULL, store, &parameters, 0, NULL, &chain_context)) {
+		CertFreeCertificateContext(primary_context);
+		CertCloseStore(store, 0);
+		return MBEDTLS_ERR_X509_FATAL_ERROR;
+	}
+	CERT_CHAIN_POLICY_PARA policy_parameters = {0};
+	CERT_CHAIN_POLICY_STATUS policy_status = {0};
+	if(!CertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL, chain_context, &policy_parameters, &policy_status)) {
+		CertFreeCertificateChain(chain_context);
+		CertFreeCertificateContext(primary_context);
+		CertCloseStore(store, 0);
+		return MBEDTLS_ERR_X509_FATAL_ERROR;
+	}
+	if(policy_status.dwError == 0) {
+		*flags = 0;
+	} else {
+		// if we ever want to read the verification result,
+		// we need to properly map dwError to flags
+		*flags |= MBEDTLS_X509_BADCERT_OTHER;
+	}
+	CertFreeCertificateChain(chain_context);
+	CertFreeCertificateContext(primary_context);
+	CertCloseStore(store, 0);
+	return 0;
+}
+#elif defined(IPHONE) || defined(APPLETV)
+static int verify_callback(void *data, mbedtls_x509_crt *crt, int depth, uint32_t *flags) {
+	// use mbedtls validate the chain structure and we validate with the iOS system trust store to replace the missing CA bundle
+	if (depth != 0) {
+		*flags = 0;
+		return 0;
+	}
+
+	CFDataRef derData = CFDataCreate(NULL, crt->raw.p, crt->raw.len);
+	if (!derData) return 0;
+
+	SecCertificateRef secCert = SecCertificateCreateWithData(NULL, derData);
+	CFRelease(derData);
+	if (!secCert) return 0;
+
+	SecPolicyRef policy = SecPolicyCreateSSL(true, NULL);
+	CFArrayRef certs = CFArrayCreate(NULL, (const void **)&secCert, 1, &kCFTypeArrayCallBacks);
+	SecTrustRef trust = NULL;
+	SecTrustCreateWithCertificates(certs, policy, &trust);
+	CFRelease(certs);
+	CFRelease(policy);
+	CFRelease(secCert);
+
+	CFErrorRef err = NULL;
+	bool trusted = SecTrustEvaluateWithError(trust, &err);
+	CFRelease(trust);
+	if (err) CFRelease(err);
+
+	if (trusted) *flags = 0;
+	return 0;
+}
+#endif
+
 Dynamic _hx_ssl_conf_new( bool server ) {
 	int ret;
 	sslconf *conf = new sslconf();
@@ -385,6 +490,9 @@ Dynamic _hx_ssl_conf_new( bool server ) {
 		conf->destroy();
 		ssl_error( ret );
 	}
+#if defined(NEKO_WINDOWS) || defined(IPHONE) || defined(APPLETV)
+	mbedtls_ssl_conf_verify(conf->c, verify_callback, NULL);
+#endif
 	mbedtls_ssl_conf_rng( conf->c, mbedtls_ctr_drbg_random, &ctr_drbg );
 	return conf;
 }
@@ -396,7 +504,7 @@ void _hx_ssl_conf_close( Dynamic hconf ) {
 
 void _hx_ssl_conf_set_ca( Dynamic hconf, Dynamic hcert ) {
 	sslconf *conf = val_conf(hconf);
-	if( hconf.mPtr ){
+	if( hcert.mPtr ){
 		sslcert *cert = val_cert(hcert);
 		mbedtls_ssl_conf_ca_chain( conf->c, cert->c, NULL );
 	}else{
@@ -426,10 +534,16 @@ void _hx_ssl_conf_set_cert( Dynamic hconf, Dynamic hcert, Dynamic hpkey ) {
 
 static int sni_callback( void *arg, mbedtls_ssl_context *ctx, const unsigned char *name, size_t len ){
 	if( name && arg ){
+#if (HXCPP_API_LEVEL>=500)
+		auto cb  = hx::Callable<::Dynamic(::String)>(Dynamic(static_cast<hx::Object*>(arg)));
+		auto n   = reinterpret_cast<const char*>(name);
+		auto ret = cb(String(n, strlen(n)));
+#else
 		Dynamic cb = new Dynamic();
 		cb.mPtr = (hx::Object*)arg;
 		const char *n = (const char *)name;
 		Dynamic ret = cb->__run( String(n,strlen(n)) );
+#endif
 		if( ret != null() ){
 			// TODO authmode and ca
 			Dynamic hcert = ret->__Field(HX_CSTRING("cert"), hx::paccDynamic);
@@ -443,7 +557,11 @@ static int sni_callback( void *arg, mbedtls_ssl_context *ctx, const unsigned cha
 	return -1;
 }
 
+#if (HXCPP_API_LEVEL>=500)
+void _hx_ssl_conf_set_servername_callback(Dynamic hconf, ::hx::Callable<::Dynamic(String)> cb) {
+#else
 void _hx_ssl_conf_set_servername_callback( Dynamic hconf, Dynamic cb ){
+#endif
 	sslconf *conf = val_conf(hconf);
 	mbedtls_ssl_conf_sni( conf->c, sni_callback, (void *)cb.mPtr );
 }
@@ -503,6 +621,49 @@ Dynamic _hx_ssl_cert_load_defaults(){
 	}
 	CFRelease(keychain);
 	if( chain != NULL )
+		return chain;
+#elif defined(IPHONE) || defined(APPLETV) // SystemRootCertificates.keychain doesn't exist on iOS and tvOS so i use a cool workaround
+    sslcert *chain = new sslcert();
+    chain->create(NULL); // creates a ssl cert with only the default ones that iOS or tvOS trust in the os
+    return chain;
+#elif defined(HX_NX) // Implementation for NX (Thanks CRobes on Discord for telling me that I had to modify this function)
+	sslcert *chain = NULL;
+	if (R_SUCCEEDED(sslInitialize(3)))
+	{
+		u32 id = SslCaCertificateId_All;
+		u32 buf_size = 0;
+
+		if (R_SUCCEEDED(sslGetCertificateBufSize(&id, 1, &buf_size)))
+		{
+			void *buf = malloc(buf_size);
+
+			if (buf)
+			{
+				u32 count = 0;
+				if (R_SUCCEEDED(sslGetCertificates(buf, buf_size, &id, 1, &count)))
+				{
+					SslBuiltInCertificateInfo *infos = (SslBuiltInCertificateInfo *)buf;
+
+					for (u32 i = 0; i < count; i++)
+					{
+						if (infos[i].status == SslTrustedCertStatus_EnabledTrusted)
+						{
+							if (chain == NULL)
+							{
+								chain = new sslcert();
+								chain->create(NULL);
+							}
+							mbedtls_x509_crt_parse_der(chain->c, (unsigned char *)infos[i].cert_data, (size_t)infos[i].cert_size);
+						}
+					}
+				}
+				free(buf);
+			}
+		}
+		sslExit();
+	}
+
+	if (chain != NULL)
 		return chain;
 #endif
 	return null();

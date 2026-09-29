@@ -1,6 +1,6 @@
 <xml>
 
-<!-- LINUX TOOLS -------------------------------------->
+<!-- LINUX TOOLS -->
 
 
 <section if="xcompile" >
@@ -24,9 +24,18 @@
       <set name="HXCPP_AR" value="arm-linux-gnueabihf-ar" />
       <set name="HXCPP_RANLIB" value="arm-linux-gnueabihf-ranlib" />
    </section>
-</section>
 
-<set name="HXCPP_CPP11" value="1" unless="HXCPP_NO_CPP11" />
+   <section if="nx">
+      <!-- Nintendo Switch DevKitA64 paths -->
+      <path name="${DEVKITPRO}/devkitA64/bin/" />
+      <path name="${DEVKITPRO}/tools/bin/" />
+      <set name='CXX' value='aarch64-none-elf-g++' />
+      <set name='HXCPP_STRIP' value='aarch64-none-elf-strip' />
+      <set name='HXCPP_AR' value='aarch64-none-elf-ar' />
+      <set name='HXCPP_RANLIB' value='aarch64-none-elf-ranlib' />
+   </section>
+
+</section>
 
 <include name="toolchain/gcc-toolchain.xml"/>
 <set name="noM32" value="1" if="HXCPP_NO_M32" />
@@ -38,14 +47,36 @@
 <compiler id="linux" exe="g++" if="linux">
   <exe name="${CXX}" if="CXX" />
   <flag value="-c"/>
+  <flag value="-flto" if="HXCPP_OPTIMIZE_LINK" unless="debug"/>
   <flag value="-fvisibility=hidden"/>
   <cppflag value="-frtti"/>
-  <cppflag value="-std=c++20" if="HXCPP_CPP11" />
-  <cflag value="-std=gnu99" unless="HXCPP_NO_GNU99" />
-  <flag value="-g" if="debug"/>
+  <flag value="-g" if="HXCPP_DEBUG_LINK"/>
   <flag value="-O2" unless="debug"/>
-  <flag value="-fpic"/>
-  <flag value="-fPIC"/>
+
+  <!-- Nintendo Switch specific flags -->
+   <section if="nx">
+      <flag value='-march=armv8-a+crc+crypto' />
+      <flag value='-mtp=soft' />
+      <flag value='-mtune=cortex-a57' />
+      <flag value='-fPIE' />
+      <flag value='-Wall' />
+      <flag value='-D__SWITCH__' />
+      <flag value='-D__NX__' />
+      <flag value='-D__TM_GMTOFF=tm_gmtoff'/>
+      <flag value='-D__POSIX_VISIBLE'/>
+      <flag value='-D__BSD_VISIBLE'/>
+      <flag value="-DHX_NX"/>
+
+      <flag value='-ffunction-sections' />
+      <flag value='-fexceptions' />
+      <flag value='-fpermissive' />
+      <flag value='-static' />
+      <flag value="-I${DEVKITPRO}/libnx/include"/>
+   </section>
+
+   <flag value="-fpic" unless="nx" />
+   <flag value="-fPIC" unless="nx"/>
+
   <flag value="-Wno-overflow" />
   <cppflag value="-Wno-invalid-offsetof" />
   <flag value="-DHX_LINUX"/>
@@ -54,7 +85,7 @@
   <flag value="-DHXCPP_BIG_ENDIAN" if="HXCPP_BIG_ENDIAN"/>
   <include name="toolchain/common-defines.xml" />
   <flag value="-m32" unless="noM32"/>
-  <flag value="-m64" if="HXCPP_M64" unless="noM64" />
+  <flag value="-m64" if="HXCPP_M64" unless="noM64 || nx" />
   <flag value="-DHXCPP_M64" if="HXCPP_M64"/>
   <flag value="-I${HXCPP}/include"/>
   <objdir value="obj/linux${OBJEXT}/"/>
@@ -66,14 +97,13 @@
   <exe name="${CXX}" if="CXX" />
   <fromfile value="" if="GCC_OLD" />
   <flag value="-shared"/>
-  <flag value="-fpic"/>
-  <flag value="-fPIC"/>
+  <flag value="-fpic" unless="nx"/>
+  <flag value="-fPIC" unless="nx"/>
   <flag value="-m32" unless="noM32"/>
-  <flag value="-m64" if="HXCPP_M64" unless="noM64" />
-  <!-- <flag value="-Wl,--unresolved-symbols=report-all"/> -->
+  <flag value="-m64" if="HXCPP_M64" unless="noM64 || nx" />
   <flag value="-Xlinker"/>
   <flag value="--no-undefined" unless="HXCPP_ALLOW_UNDEFINED" />
-  <flag value="-debug" if="debug"/>
+  <flag value="-debug" if="HXCPP_DEBUG_LINK" />
   <lib name="-ldl"/>
   <ext value=".dso"/>
   <outflag value="-o "/>
@@ -82,10 +112,10 @@
 <linker id="exe" exe="g++" if="linux">
   <exe name="${CXX}" if="CXX" />
   <fromfile value="" if="GCC_OLD" />
-  <flag value="-debug" if="debug"/>
+  <flag value="-debug" if="HXCPP_DEBUG_LINK" />
   <flag value="-rdynamic"/>
   <flag value="-m32" unless="noM32"/>
-  <flag value="-m64" if="HXCPP_M64" unless="noM64" />
+  <flag value="-m64" if="HXCPP_M64" unless="noM64 || nx" />
   <lib name="-ldl"/>
   <ext value=""/>
   <outflag value="-o "/>

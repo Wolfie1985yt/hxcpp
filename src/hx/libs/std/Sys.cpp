@@ -23,20 +23,26 @@
    #ifndef EPPC
       #include <unistd.h>
       #include <dirent.h>
-      #include <termios.h>
+   #if defined(HX_NX)
+      #include <machine/termios.h>
+   #else
+   #include <termios.h>
+   #endif
       #include <sys/time.h>
       #include <sys/times.h>
    #endif
    #include <limits.h>
-   #ifndef ANDROID
+   #ifndef ANDROID 
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(HX_NX)
          #include <xlocale.h>
+      #elif defined(HX_NX)
+         #include <locale.h>
       #endif
    #endif
 #endif
 
-#ifdef EMSCRIPTEN
+#ifdef __EMSCRIPTEN__
    #include <sys/wait.h>
 #endif
 
@@ -54,6 +60,11 @@
 
 #ifdef HX_ANDROID
  #include <sys/wait.h>
+#endif
+
+#ifdef HX_NX
+   #include <sys/wait.h>
+   #include <switch/arm/counter.h>
 #endif
 
 #ifndef CLK_TCK
@@ -77,7 +88,7 @@
 
 String _hx_std_get_env( String v )
 {
-   #ifdef HX_WINRT
+   #if defined(HX_WINRT) || defined(HX_NX)
       return String();
    #else
       #if defined(NEKO_WINDOWS) && defined(HX_SMART_STRINGS)
@@ -96,7 +107,7 @@ String _hx_std_get_env( String v )
 **/
 void _hx_std_put_env( String e, String v )
 {
-#ifdef HX_WINRT
+#if defined(HX_WINRT) || defined(HX_NX)
    // Do nothing
 #elif defined(NEKO_WINDOWS)
    String set = e + HX_CSTRING("=") + (v != null()?v:"");
@@ -172,7 +183,7 @@ bool _hx_std_set_time_locale( String l )
       freelocale(old);
    return true;
 #else
-   #ifdef HX_SMART_STRINGS
+   #if defined(NEKO_WINDOWS) && defined(HX_SMART_STRINGS)
    if (l.isUTF16Encoded())
       return _wsetlocale(LC_TIME,l.wchar_str());
    #endif
@@ -192,7 +203,13 @@ String _hx_std_get_cwd()
    return HX_CSTRING("ms-appdata:///local/");
    #elif defined(EPPC)
    return String();
-   #else
+   #elif defined(HX_NX)
+   if (_hx_std_sys_exists(HX_CSTRING("sdmc:/")))
+   {
+      return HX_CSTRING("sdmc:/");
+   }
+   return String(); // Idk, Atmosphere from SysMMC without a SD?
+#else
 #ifdef NEKO_WINDOWS
    wchar_t buf[261];
    int l;
@@ -224,7 +241,7 @@ String _hx_std_get_cwd()
 **/
 bool _hx_std_set_cwd( String d )
 {
-   #if !defined(HX_WINRT) && !defined(EPPC)
+   #if !defined(HX_WINRT) && !defined(EPPC) && !defined(HX_NX)
 #ifdef NEKO_WINDOWS
    return SetCurrentDirectoryW(d.wchar_str()) == 0;
 #else
@@ -266,10 +283,12 @@ String _hx_std_sys_string()
    return HX_CSTRING("Android");
 #elif defined(BLACKBERRY)
    return HX_CSTRING("BlackBerry");
-#elif defined(EMSCRIPTEN)
+#elif defined(__EMSCRIPTEN__)
    return HX_CSTRING("Emscripten");
 #elif defined(EPPC)
    return HX_CSTRING("EPPC");
+#elif defined(HX_NX)
+   return HX_CSTRING("HorizonOS");
 #else
 #error Unknow system string
 #endif
@@ -296,7 +315,7 @@ bool _hx_std_sys_is64()
 **/
 int _hx_std_sys_command( String cmd )
 {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
+   #if defined(HX_WINRT) || defined(__EMSCRIPTEN__) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(HX_NX)
    return -1;
    #else
    if( !cmd.raw_ptr() || !cmd.length )
@@ -641,6 +660,8 @@ double _hx_std_sys_cpu_time()
 {
 #if defined(HX_WINRT) && !defined(_XBOX_ONE)
     return ((double)GetTickCount64()/1000.0);
+#elif defined(HX_NX)
+   return ((double)armTicksToNs(armGetSystemTick()) / 1.0e6); // Use directy the libnx API
 #elif defined(NEKO_WINDOWS)
    FILETIME unused;
    FILETIME stime;
@@ -669,7 +690,7 @@ Array<String> _hx_std_sys_read_dir( String p )
    const wchar_t *path = p.wchar_str();
    size_t len = wcslen(path);
    if (len>MAX_PATH)
-      return null();
+      hx::Throw(HX_CSTRING("Invalid directory"));
 
    WIN32_FIND_DATAW d;
    HANDLE handle;
@@ -698,7 +719,7 @@ Array<String> _hx_std_sys_read_dir( String p )
    if( handle == INVALID_HANDLE_VALUE )
    {
       hx::ExitGCFreeZone();
-      return null();
+      hx::Throw(HX_CSTRING("Invalid directory"));
    }
    while( true )
    {
@@ -747,7 +768,7 @@ Array<String> _hx_std_sys_read_dir( String p )
 **/
 String _hx_std_file_full_path( String path )
 {
-#if defined(HX_WINRT)
+#if defined(HX_WINRT) || defined(HX_NX)
    return path;
 #elif defined(NEKO_WINDOWS)
    wchar_t buf[MAX_PATH+1];
@@ -787,7 +808,7 @@ String _hx_std_sys_exe_path()
    if( _NSGetExecutablePath(path, &path_len) )
       return null();
    return String::create(path);
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(HX_NX)
    return HX_CSTRING("");
 #else
    {
@@ -865,7 +886,7 @@ Array<String> _hx_std_sys_env()
 **/
 int _hx_std_sys_getch( bool b )
 {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
+#if defined(HX_WINRT) || defined(__EMSCRIPTEN__) || defined(EPPC) || defined(HX_NX)
    return 0;
 #elif defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();
@@ -900,7 +921,7 @@ int _hx_std_sys_get_pid()
 {
 #   ifdef NEKO_WINDOWS
    return (int)(GetCurrentProcessId());
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(HX_NX)
    return (1);
 #   else
    return (getpid());

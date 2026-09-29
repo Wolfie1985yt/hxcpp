@@ -111,6 +111,12 @@ void CppiaModule::registerDebugger()
    for(hx::UnorderedSet<int>::const_iterator i = allFileIds.begin(); i!=allFileIds.end(); ++i)
       addScriptableFile(strings[*i]);
 
+   #if (HXCPP_API_LEVEL >= 500)
+   if (hx::g_onScriptLoadedFunction != null{}) {
+      hx::g_onScriptLoadedFunction();
+   }
+   #endif
+
    #endif
 }
 
@@ -179,11 +185,7 @@ int CppiaModule::getInterfaceSlot(const std::string &inName)
    InterfaceSlots::iterator it = interfaceSlots.find(inName);
    if (it==interfaceSlots.end())
    {
-      #if (HXCPP_API_LEVEL >= 330)
       int result = interfaceSlots.size()+1;
-      #else
-      int result = interfaceSlots.size()+2;
-      #endif
       interfaceSlots[inName] = result;
       return result;
    }
@@ -289,13 +291,13 @@ public:
    {
       delete ((CppiaObject *)inObj)->cppia;
    }
-   void __Mark(hx::MarkContext *ctx) { cppia->mark(ctx); }
+   void __Mark(hx::MarkContext *ctx) HXCPP_OVERRIDE { cppia->mark(ctx); }
 #ifdef HXCPP_VISIT_ALLOCS
-   void __Visit(hx::VisitContext *ctx) { cppia->visit(ctx); }
+   void __Visit(hx::VisitContext *ctx) HXCPP_OVERRIDE { cppia->visit(ctx); }
 #endif
 
 
-   void boot()
+   void boot() HXCPP_OVERRIDE
    {
       if (booted)
          return;
@@ -315,7 +317,7 @@ public:
    }
 
 
-   void run()
+   void run() HXCPP_OVERRIDE
    {
       if (!booted)
          boot();
@@ -342,7 +344,7 @@ public:
       }
    }
 
-   ::hx::Class resolveClass( ::String inName)
+   ::hx::Class resolveClass( ::String inName) HXCPP_OVERRIDE
    {
       CppiaClassInfo *info = cppia->findClass(inName);
       if (info)

@@ -145,15 +145,15 @@ struct CppiaVoidExpr : public CppiaExpr
 {
    CppiaVoidExpr(const CppiaExpr *inSrc=0) : CppiaExpr(inSrc) {}
 
-   const char *getName() { return "CppiaVoidExpr"; }
+   const char *getName() HXCPP_OVERRIDE { return "CppiaVoidExpr"; }
 
-   ExprType getType() { return etVoid; }
+   ExprType getType() HXCPP_OVERRIDE { return etVoid; }
 
-   virtual int  runInt(CppiaCtx *ctx) { runVoid(ctx); return 0; }
-   virtual Float       runFloat(CppiaCtx *ctx) { runVoid(ctx); return 0.0; }
-   virtual ::String    runString(CppiaCtx *ctx) { runVoid(ctx); return String(); }
-   virtual hx::Object *runObject(CppiaCtx *ctx) { runVoid(ctx); return 0; }
-   virtual void        runVoid(CppiaCtx *ctx) = 0;
+   int  runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { runVoid(ctx); return 0; }
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { runVoid(ctx); return 0.0; }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { runVoid(ctx); return String(); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { runVoid(ctx); return 0; }
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE = 0;
 };
 
 
@@ -166,15 +166,15 @@ struct CppiaIntExpr : public CppiaExpr
 {
    CppiaIntExpr(const CppiaExpr *inSrc=0) : CppiaExpr(inSrc) {}
 
-   const char *getName() { return "CppiaIntExpr"; }
-   ExprType getType() { return etInt; }
+   const char *getName() HXCPP_OVERRIDE { return "CppiaIntExpr"; }
+   ExprType getType() HXCPP_OVERRIDE { return etInt; }
 
-   void runVoid(CppiaCtx *ctx) { runInt(ctx); }
-   Float runFloat(CppiaCtx *ctx) { return runInt(ctx); }
-   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(runInt(ctx)).mPtr; }
-   String runString(CppiaCtx *ctx) { return String(runInt(ctx)); }
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { runInt(ctx); }
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return runInt(ctx); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return Dynamic(runInt(ctx)).mPtr; }
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return String(runInt(ctx)); }
 
-   int runInt(CppiaCtx *ctx) = 0;
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE = 0;
 };
 
 
@@ -185,13 +185,13 @@ struct CppiaBoolExpr : public CppiaIntExpr
 {
    CppiaBoolExpr(const CppiaExpr *inSrc=0) : CppiaIntExpr(inSrc) {}
 
-   const char *getName() { return "CppiaBoolExpr"; }
-   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(runInt(ctx) ? true : false).mPtr; }
-   String runString(CppiaCtx *ctx) { return runInt(ctx)?HX_CSTRING("true") : HX_CSTRING("false");}
-   bool isBoolInt() { return true; }
+   const char *getName() HXCPP_OVERRIDE { return "CppiaBoolExpr"; }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return Dynamic(runInt(ctx) ? true : false).mPtr; }
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return runInt(ctx)?HX_CSTRING("true") : HX_CSTRING("false");}
+   bool isBoolInt() HXCPP_OVERRIDE { return true; }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JumpId notCondition = genCompare(compiler, true, 0);
 
@@ -265,13 +265,11 @@ static hx::Object *convert(hx::Object *obj)
    Array_obj<T> *alreadyGood = dynamic_cast<Array_obj<T> *>(obj);
    if (alreadyGood)
       return alreadyGood;
-   #if (HXCPP_API_LEVEL>=330)
    cpp::VirtualArray_obj *varray = dynamic_cast<cpp::VirtualArray_obj *>(obj);
    if (varray)
    {
       return Array<T>( cpp::VirtualArray(varray) ).mPtr;
    }
-   #endif
    int n = obj->__length();
    Array<T> result = Array_obj<T>::__new(n,n);
    for(int i=0;i<n;i++)
@@ -290,7 +288,6 @@ hx::Object *DynamicToArrayType(hx::Object *obj, ArrayType arrayType)
       case arrFloat:        return convert<Float>(obj);
       case arrFloat32:      return convert<float>(obj);
       case arrString:       return convert<String>(obj);
-      #if (HXCPP_API_LEVEL>=330)
       case arrAny:
       {
          ArrayBase *base = dynamic_cast<ArrayBase *>(obj);
@@ -299,10 +296,6 @@ hx::Object *DynamicToArrayType(hx::Object *obj, ArrayType arrayType)
          return dynamic_cast<cpp::VirtualArray_obj *>(obj);
       }
       case arrObject:       return convert<Dynamic>(obj);
-      #else
-      case arrAny:          return convert<Dynamic>(obj);
-      case arrObject:       return obj;
-      #endif
       case arrNotArray:     throw "Bad cast";
    }
 
@@ -348,9 +341,9 @@ struct BlockCallable : public ScriptCallable
    {
    }
 
-   ExprType getType() { return body->getType(); }
+   ExprType getType() HXCPP_OVERRIDE { return body->getType(); }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       ctx->push( ctx->getThis(false) );
@@ -360,7 +353,7 @@ struct BlockCallable : public ScriptCallable
       CPPIA_STACK_LINE(this);
       body->runVoid(ctx);
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       ctx->push( ctx->getThis(false) );
@@ -370,7 +363,7 @@ struct BlockCallable : public ScriptCallable
       CPPIA_STACK_LINE(this);
       return body->runInt(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       ctx->push( ctx->getThis(false) );
@@ -380,7 +373,7 @@ struct BlockCallable : public ScriptCallable
       CPPIA_STACK_LINE(this);
       return body->runFloat(ctx);
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       ctx->push( ctx->getThis(false) );
@@ -402,7 +395,7 @@ struct BlockExpr : public CppiaExpr
       ReadExpressions(expressions,stream);
    }
 
-   CppiaExpr *link(CppiaModule &data)
+   CppiaExpr *link(CppiaModule &data) HXCPP_OVERRIDE
    {
       if (data.layout==0)
       {
@@ -414,8 +407,8 @@ struct BlockExpr : public CppiaExpr
       return this;
    }
 
-   const char *getName() { return "BlockExpr"; }
-   virtual ExprType getType()
+   const char *getName() HXCPP_OVERRIDE { return "BlockExpr"; }
+   ExprType getType() HXCPP_OVERRIDE
    {
       if (expressions.size()==0)
          return etNull;
@@ -423,7 +416,7 @@ struct BlockExpr : public CppiaExpr
    }
 
    #define BlockExprRun(ret,name,defVal) \
-     ret name(CppiaCtx *ctx) \
+     ret name(CppiaCtx *ctx) HXCPP_OVERRIDE \
      { \
         int last = expressions.size()-1; \
         for(int a=0;a<last;a++) \
@@ -440,11 +433,13 @@ struct BlockExpr : public CppiaExpr
    BlockExprRun(Float ,runFloat,0)
    BlockExprRun(String,runString,null())
    BlockExprRun(hx::Object *,runObject,0)
-   void  runVoid(CppiaCtx *ctx)
+   void  runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
+      if (expressions.size()==0)
+         return;
       CppiaExpr **e = &expressions[0];
       CppiaExpr **end = e+expressions.size();
-      for(;e<end && !ctx->breakContReturn;e++)
+      for(;e<end && !ctx->breakContReturn && !ctx->exception;e++)
       {
          CPPIA_STACK_LINE((*e));
          (*e)->runVoid(ctx);
@@ -453,7 +448,7 @@ struct BlockExpr : public CppiaExpr
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       int n = expressions.size();
       int lineOffset = compiler->getLineOffset();
@@ -479,7 +474,7 @@ struct IfElseExpr : public CppiaExpr
    CppiaExpr *doIf;
    CppiaExpr *doElse;
 
-   const char *getName() { return "IfElseExpr"; }
+   const char *getName() HXCPP_OVERRIDE { return "IfElseExpr"; }
    IfElseExpr(CppiaStream &stream)
    {
       condition = createCppiaExpr(stream);
@@ -487,7 +482,7 @@ struct IfElseExpr : public CppiaExpr
       doElse = createCppiaExpr(stream);
    }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       condition = condition->link(inModule);
       doIf = doIf->link(inModule);
@@ -495,7 +490,7 @@ struct IfElseExpr : public CppiaExpr
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (condition->runInt(ctx))
          doIf->runVoid(ctx);
@@ -503,7 +498,7 @@ struct IfElseExpr : public CppiaExpr
          doElse->runVoid(ctx);
    }
    #define IF_ELSE_RUN(TYPE,NAME) \
-   TYPE NAME(CppiaCtx *ctx) \
+   TYPE NAME(CppiaCtx *ctx) HXCPP_OVERRIDE \
    { \
       if (condition->runInt(ctx)) \
       { \
@@ -519,7 +514,7 @@ struct IfElseExpr : public CppiaExpr
    IF_ELSE_RUN(Float,runFloat)
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JumpId ifNot = condition->genCompare(compiler,true);
       doIf->genCode(compiler,inDest,destType);
@@ -545,16 +540,16 @@ struct IfExpr : public CppiaDynamicExpr
       doIf = createCppiaExpr(stream);
    }
 
-   const char *getName() { return "IfExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "IfExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       condition = condition->link(inModule);
       doIf = doIf->link(inModule);
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx) { runVoid(ctx); return 0; }
-   void runVoid(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { runVoid(ctx); return 0; }
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (condition->runInt(ctx))
       {
@@ -564,7 +559,7 @@ struct IfExpr : public CppiaDynamicExpr
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JumpId ifNot = condition->genCompare(compiler,true);
       doIf->genCode(compiler,inDest,destType);
@@ -580,15 +575,15 @@ struct CppiaIsNull : public CppiaBoolExpr
 
    CppiaIsNull(CppiaStream &stream) { condition = createCppiaExpr(stream); }
 
-   const char *getName() { return "IsNull"; }
+   const char *getName() HXCPP_OVERRIDE { return "IsNull"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       condition = condition->link(inModule);
       return this;
    }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (condition->getType()==etString)
          return condition->runString(ctx)==null();
@@ -597,7 +592,7 @@ struct CppiaIsNull : public CppiaBoolExpr
    }
 
    #ifdef CPPIA_JIT
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       if (condition->getType()==etString)
       {
@@ -624,10 +619,10 @@ struct CppiaIsNotNull : public CppiaBoolExpr
 
    CppiaIsNotNull(CppiaStream &stream) { condition = createCppiaExpr(stream); }
 
-   const char *getName() { return "IsNotNull"; }
-   CppiaExpr *link(CppiaModule &inModule) { condition = condition->link(inModule); return this; }
+   const char *getName() HXCPP_OVERRIDE { return "IsNotNull"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE { condition = condition->link(inModule); return this; }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (condition->getType()==etString)
          return condition->runString(ctx)!=null();
@@ -637,7 +632,7 @@ struct CppiaIsNotNull : public CppiaBoolExpr
 
 
    #ifdef CPPIA_JIT
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       if (condition->getType()==etString)
       {
@@ -749,7 +744,7 @@ struct CallFunExpr : public CppiaExpr
       isThisCall = inThisCall;
    }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       LinkExpressions(args,inModule);
       // Should already be linked
@@ -761,12 +756,12 @@ struct CallFunExpr : public CppiaExpr
       return this;
    }
 
-   const char *getName() { return "CallFunExpr"; }
-   ExprType getType() { return returnType; }
-   bool isBoolInt() { return isBoolReturn; }
+   const char *getName() HXCPP_OVERRIDE { return "CallFunExpr"; }
+   ExprType getType() HXCPP_OVERRIDE { return returnType; }
+   bool isBoolInt() HXCPP_OVERRIDE { return isBoolReturn; }
 
    #define CallFunExprVal(ret,name,funcName) \
-   ret name(CppiaCtx *ctx) \
+   ret name(CppiaCtx *ctx) HXCPP_OVERRIDE \
    { \
       unsigned char *pointer = ctx->pointer; \
       function->pushArgs(ctx,thisExpr?thisExpr->runObject(ctx):ctx->getThis(false),args); \
@@ -779,7 +774,7 @@ struct CallFunExpr : public CppiaExpr
    //CallFunExprVal(hx::Object * ,runObject, runContextConvertObject);
    //CallFunExprVal(String ,runString, runContextConvertString);
 
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       function->pushArgs(ctx,thisExpr?thisExpr->runObject(ctx):ctx->getThis(false),args);
@@ -790,7 +785,7 @@ struct CallFunExpr : public CppiaExpr
       return runContextConvertString(ctx, function->getReturnType(), function);
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       function->pushArgs(ctx,thisExpr?thisExpr->runObject(ctx):ctx->getThis(false),args);
@@ -801,12 +796,11 @@ struct CallFunExpr : public CppiaExpr
       return runContextConvertObject(ctx, function->getReturnType(), function);
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       unsigned char *pointer = ctx->pointer;
       function->pushArgs(ctx,thisExpr?thisExpr->runObject(ctx):ctx->getThis(false),args);
-      if (ctx->breakContReturn)
-         return;
+      BCR_VCHECK;
 
       AutoStack save(ctx,pointer);
       ctx->runVoid(function);
@@ -824,7 +818,7 @@ struct CallFunExpr : public CppiaExpr
 
 
    // Function Call
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       genFunctionCall(function, compiler, inDest, destType, isBoolReturn, returnType,thisExpr, args,
                       isThisCall ? (JitVal)sJitThis : JitVal());
@@ -847,23 +841,23 @@ struct CppiaExprWithValue : public CppiaDynamicExpr
       value.mPtr = 0;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx) { return value.mPtr; }
-   void mark(hx::MarkContext *__inCtx) { HX_MARK_MEMBER(value); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return value.mPtr; }
+   void mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE { HX_MARK_MEMBER(value); }
 #ifdef HXCPP_VISIT_ALLOCS
-   void visit(hx::VisitContext *__inCtx) { HX_VISIT_MEMBER(value); }
+   void visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE { HX_VISIT_MEMBER(value); }
 #endif
 
-   const char *getName() { return "CppiaExprWithValue"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CppiaExprWithValue"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       inModule.markable.push_back(this);
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx) { runObject(ctx); }
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { runObject(ctx); }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType!=etNull && destType!=etVoid)
          compiler->convert( (void *)value.mPtr, etObject,  inDest, destType);
@@ -892,6 +886,12 @@ void SLJIT_CALL callDynamic(CppiaCtx *ctx, hx::Object *inFunction, int inArgs)
    //ctx->pointer = (unsigned char *)base;
 
    TRY_NATIVE
+#if (HXCPP_API_LEVEL>=500)
+       Array<Dynamic> argArray = Array_obj<Dynamic>::__new(inArgs, inArgs);
+       for (int s = 0; s < inArgs; s++)
+           argArray[s] = base[s];
+       base[0] = inFunction->__Run(argArray).mPtr;
+#else
       switch(inArgs)
       {
          case 0:
@@ -920,6 +920,7 @@ void SLJIT_CALL callDynamic(CppiaCtx *ctx, hx::Object *inFunction, int inArgs)
             base[0] = inFunction->__Run(argArray).mPtr;
             }
       }
+#endif
    CATCH_NATIVE
    ctx->pointer = oldPointer;
 }
@@ -943,18 +944,27 @@ struct CallDynamicFunction : public CppiaExprWithValue
       inModule.markable.push_back(this);
    }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       LinkExpressions(args,inModule);
       return CppiaExprWithValue::link(inModule);
    }
 
-   const char *getName() { return "CallDynamicFunction"; }
-   ExprType getType() { return etObject; }
+   const char *getName() HXCPP_OVERRIDE { return "CallDynamicFunction"; }
+   ExprType getType() HXCPP_OVERRIDE { return etObject; }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int n = args.size();
+#if (HXCPP_API_LEVEL>=500)
+      Array<Dynamic> argVals = Array_obj<Dynamic>::__new(n, n);
+      for (int a = 0; a < n; a++)
+      {
+          argVals[a] = Dynamic(args[a]->runObject(ctx));
+          BCR_CHECK;
+      }
+      return value->__Run(argVals).mPtr;
+#else
       switch(n)
       {
          case 0:
@@ -1018,19 +1028,20 @@ struct CallDynamicFunction : public CppiaExprWithValue
          BCR_CHECK;
       }
       return value->__Run(argVals).mPtr;
+#endif
    }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *result = runObject(ctx);
       return result ? result->__ToInt() : 0;
    }
-   Float  runFloat(CppiaCtx *ctx)
+   Float  runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *result = runObject(ctx);
       return result ? result->__ToDouble() : 0;
    }
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *result = runObject(ctx);
       BCR_CHECK;
@@ -1039,7 +1050,7 @@ struct CallDynamicFunction : public CppiaExprWithValue
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       {
       AutoFramePos frame(compiler);
@@ -1094,8 +1105,8 @@ struct SetExpr : public CppiaExpr
       value = createCppiaExpr(stream);
    }
 
-   const char *getName() { return "SetExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "SetExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       lvalue = lvalue->link(inModule);
       value = value->link(inModule);
@@ -1111,15 +1122,6 @@ struct SetExpr : public CppiaExpr
    }
 
 };
-
-#if (HXCPP_API_LEVEL < 330)
-class CppiaInterface : public hx::Interface
-{
-   typedef CppiaInterface __ME;
-   typedef hx::Interface super;
-   HX_DEFINE_SCRIPTABLE_INTERFACE
-};
-#endif
 
 enum CastOp
 {
@@ -1153,26 +1155,28 @@ struct CastExpr : public CppiaDynamicExpr
 
       value = createCppiaExpr(stream);
    }
-   ExprType getType() { return op==castInt || op==castBool ? etInt :
-                               op==castFloat ? etFloat :
-                               op==castString ? etString :
-                                                etObject; }
+   ExprType getType() HXCPP_OVERRIDE {
+      return op==castInt || op==castBool ? etInt :
+             op==castFloat ? etFloat :
+             op==castString ? etString :
+             etObject;
+   }
 
-   bool isBoolInt() { return op==castBool; }
+   bool isBoolInt() HXCPP_OVERRIDE { return op == castBool; }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (op==castBool)
          return (bool)value->runInt(ctx);
       return value->runInt(ctx);
    }
 
-   double runFloat(CppiaCtx *ctx)
+   double runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return value->runFloat(ctx);
    }
 
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       switch(op)
       {
@@ -1190,7 +1194,7 @@ struct CastExpr : public CppiaDynamicExpr
    }
 
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (op==castInt)
          return Dynamic(value->runInt(ctx)).mPtr;
@@ -1212,18 +1216,14 @@ struct CastExpr : public CppiaDynamicExpr
          return 0;
 
       if (op==castDynamic)
-      #if (HXCPP_API_LEVEL>=331)
          return obj;
-      #else
-         return obj->__GetRealObject();
-      #endif
 
       return DynamicToArrayType(obj, arrayType);
    }
 
-   const char *getName() { return "CastExpr"; }
+   const char *getName() HXCPP_OVERRIDE { return "CastExpr"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       value = value->link(inModule);
 
@@ -1292,11 +1292,11 @@ struct CastExpr : public CppiaDynamicExpr
          CppiaCtx::getCurrent()->exception = HX_INVALID_CAST.mPtr;
          return 0;
       }
- 
+
       return obj;
    }
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etNull || destType==etVoid)
       {
@@ -1428,78 +1428,16 @@ struct ToInterface : public CppiaDynamicExpr
       toType = 0;
    }
 
-   const char *getName() { return array ? "ToInterfaceArray" : "ToInterface"; }
+   const char *getName() HXCPP_OVERRIDE { return array ? "ToInterfaceArray" : "ToInterface"; }
 
-   #if (HXCPP_API_LEVEL >= 330)
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       DBGLOG("Api 330 - no cast required\n");
       CppiaExpr *linked = value->link(inModule);
       delete this;
       return linked;
    }
-   hx::Object *runObject(CppiaCtx *ctx) { return 0; }
-
-   #else
-   CppiaExpr *link(CppiaModule &inModule)
-   {
-      toType = inModule.types[toTypeId];
-      TypeData *fromType = fromTypeId ? inModule.types[fromTypeId] : 0;
-
-      if (toType->interfaceBase)
-      {
-         interfaceInfo = toType->interfaceBase;
-         if (!fromType)
-         {
-            useNative = true;
-         }
-         else if (!fromType->cppiaClass)
-         {
-            DBGLOG("native -> native\n");
-            useNative = true;
-         }
-         else
-         {
-            DBGLOG("cppia class, native interface\n");
-            cppiaVTable = fromType->cppiaClass->getInterfaceVTable(toType->interfaceBase->name);
-         }
-         value = value->link(inModule);
-         return this;
-      }
-
-
-      DBGLOG("cppia class, cppia interface - no cast required\n");
-
-      CppiaExpr *linked = value->link(inModule);
-      delete this;
-      return linked;
-   }
-
-   hx::Object *runObject(CppiaCtx *ctx)
-   {
-      hx::Object *obj = value->runObject(ctx);
-      if (!obj)
-         return 0;
-      if (obj)
-         obj = obj->__GetRealObject();
-
-      if (cppiaVTable)
-      {
-         if (array)
-         {
-            CPPIA_CHECK(obj);
-            int n = obj->__length();
-            Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
-            for(int i=0;i<n;i++)
-               result[i] = interfaceInfo->factory(cppiaVTable,obj->__GetItem(i)->__GetRealObject());
-            return result.mPtr;
-         }
-         return interfaceInfo->factory(cppiaVTable,obj);
-      }
-      hx::Object *result = obj->__ToInterface(*interfaceInfo->mType);
-      return result;
-   }
-   #endif
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return 0; }
 };
 
 
@@ -1512,11 +1450,7 @@ static void *SLJIT_CALL createArrayFloat32(int n) { return (Array_obj<float>::__
 static void *SLJIT_CALL createArrayString(int n) { return (Array_obj<String>::__new(n,n)).mPtr; }
 static void *SLJIT_CALL createArrayObject(int n) { return (Array_obj<Dynamic>::__new(n,n)).mPtr; }
 static void *SLJIT_CALL createArrayAny(int n) {
-  #if (HXCPP_API_LEVEL>=330)
   return (cpp::VirtualArray_obj::__new(n,n)).mPtr;
-  #else
-  return (Array_obj<Dynamic>::__new(n,n)).mPtr;
-  #endif
 }
 static void SLJIT_CALL varraySetInt(cpp::VirtualArray_obj *varray, int i, int value) { varray->init(i,value); }
 static void SLJIT_CALL varraySetBool(cpp::VirtualArray_obj *varray, int i, int value) { varray->init(i,(bool)value); }
@@ -1572,8 +1506,8 @@ struct NewExpr : public CppiaDynamicExpr
       ReadExpressions(args,stream);
    }
 
-   const char *getName() { return "NewExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "NewExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       type = inModule.types[classId];
       if (!type->cppiaClass && type->haxeClass.mPtr)
@@ -1582,7 +1516,7 @@ struct NewExpr : public CppiaDynamicExpr
       LinkExpressions(args,inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (type->arrayType)
       {
@@ -1604,11 +1538,7 @@ struct NewExpr : public CppiaDynamicExpr
             case arrString:
                return Array_obj<String>::__new(size,size).mPtr;
             case arrAny:
-               #if (HXCPP_API_LEVEL>=330)
                return cpp::VirtualArray_obj::__new(size,size).mPtr;
-               #else
-               // Fallthrough
-               #endif
             case arrObject:
                return Array_obj<Dynamic>::__new(size,size).mPtr;
             default:
@@ -1634,7 +1564,7 @@ struct NewExpr : public CppiaDynamicExpr
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       if (type->arrayType)
       {
@@ -1785,8 +1715,8 @@ struct CallHaxe : public CppiaExpr
       isStatic = inIsStatic;
       isSuper = inIsSuper;
    }
-   ExprType getType() { return returnType; }
-   CppiaExpr *link(CppiaModule &inModule)
+   ExprType getType() HXCPP_OVERRIDE { return returnType; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (strlen(function.signature) != args.size()+1)
          throw "CallHaxe: Invalid arg count";
@@ -1796,7 +1726,7 @@ struct CallHaxe : public CppiaExpr
          {
             case sigInt: case sigBool: case sigFloat: case sigString: case sigObject:
                break; // Ok
-            case sigVoid: 
+            case sigVoid:
                if (i==0) // return void ok
                   break;
                // fallthough
@@ -1824,15 +1754,16 @@ struct CallHaxe : public CppiaExpr
    }
 
 
-   bool isBoolInt() { return function.signature[0]==sigBool; }
+   bool isBoolInt() HXCPP_OVERRIDE { return function.signature[0]==sigBool; }
 
-   const char *getName() { return "CallHaxe"; }
+   const char *getName() HXCPP_OVERRIDE { return "CallHaxe"; }
 
    template<typename T>
    void run(CppiaCtx *ctx,T &outValue)
    {
       unsigned char *pointer = ctx->pointer;
       ctx->pushObject(isStatic ? 0: thisExpr ? thisExpr->runObject(ctx) : ctx->getThis(false));
+      BCR_VCHECK;
 
       const char *s = function.signature+1;
       for(int a=0;a<args.size();a++)
@@ -1848,6 +1779,7 @@ struct CallHaxe : public CppiaExpr
             case sigObject: ctx->pushObject( arg->runObject(ctx) ); break;
             default: ;// huh?
          }
+         BCR_VCHECK;
       }
 
       AutoStack a(ctx,pointer);
@@ -1872,30 +1804,30 @@ struct CallHaxe : public CppiaExpr
       }
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       null val;
       run(ctx,val);
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int val;
       run(ctx,val);
       return val;
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float val;
       run(ctx,val);
       return val;
    }
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       String val;
       run(ctx,val);
       return val;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (isBoolInt())
       {
@@ -1919,7 +1851,7 @@ struct CallHaxe : public CppiaExpr
       CATCH_NATIVE
    }
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       int framePos = compiler->getCurrentFrameSize();
 
@@ -1975,7 +1907,7 @@ struct CallStatic : public CppiaExpr
    int classId;
    int fieldId;
    Expressions args;
-  
+
    CallStatic(CppiaStream &stream)
    {
       classId = stream.getInt();
@@ -1983,8 +1915,8 @@ struct CallStatic : public CppiaExpr
       ReadExpressions(args,stream);
    }
 
-   const char *getName() { return "CallStatic"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CallStatic"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
 
       TypeData *type = inModule.types[classId];
@@ -2028,7 +1960,7 @@ struct CallStatic : public CppiaExpr
       // TODO - optimise...
       if (!replace && type->name==HX_CSTRING("String") && field==HX_CSTRING("fromCharCode"))
          replace = new CallDynamicFunction(inModule, this, String::fromCharCode_dyn(), args );
-         
+
 
       //CPPIALOG(" static call to %s::%s (%d)\n", type->name.out_str(), field.out_str(), type->cppiaClass!=0);
       if (replace)
@@ -2067,36 +1999,29 @@ void genNullReferenceExceptionCheck(CppiaCompiler *compiler, const JitVal &reg)
 struct CallGetIndex : public CppiaIntExpr
 {
    CppiaExpr   *thisExpr;
-  
+
    CallGetIndex(CppiaExpr *inSrc, CppiaExpr *inThis) : CppiaIntExpr(inSrc)
    {
       thisExpr = inThis;
    }
 
-   const char *getName() { return "__Index"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "__Index"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       thisExpr = thisExpr->link(inModule);
       return this;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = thisExpr->runObject(ctx);
       CPPIA_CHECK(obj);
-      #if (HXCPP_API_LEVEL>=330)
       return static_cast<EnumBase_obj *>(obj)->_hx_getIndex();
-      #else
-      return obj->__Index();
-      #endif
    }
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
-      #if (HXCPP_API_LEVEL<330)
-      throw "Enum getIndex not supported by this version of compiled code";
-      #endif
       thisExpr->genCode(compiler, sJitTemp0, etObject);
       genNullReferenceExceptionCheck(compiler,sJitTemp0);
       if (destType==etInt)
@@ -2117,7 +2042,7 @@ struct CallSetField : public CppiaDynamicExpr
    CppiaExpr   *nameExpr;
    CppiaExpr   *valueExpr;
    CppiaExpr   *isPropExpr;
-  
+
    CallSetField(CppiaExpr *inSrc, CppiaExpr *inThis, CppiaExpr *inName, CppiaExpr *inValue, CppiaExpr *inProp) :
       CppiaDynamicExpr(inSrc)
    {
@@ -2127,8 +2052,8 @@ struct CallSetField : public CppiaDynamicExpr
       isPropExpr = inProp;
    }
 
-   const char *getName() { return "__SetField"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "__SetField"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       thisExpr = thisExpr->link(inModule);
       nameExpr = nameExpr->link(inModule);
@@ -2136,7 +2061,7 @@ struct CallSetField : public CppiaDynamicExpr
       isPropExpr = isPropExpr->link(inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = thisExpr->runObject(ctx);
       CPPIA_CHECK(obj);
@@ -2153,7 +2078,7 @@ struct CallGetField : public CppiaDynamicExpr
    CppiaExpr   *thisExpr;
    CppiaExpr   *nameExpr;
    CppiaExpr   *isPropExpr;
-  
+
    CallGetField(CppiaExpr *inSrc, CppiaExpr *inThis, CppiaExpr *inName, CppiaExpr *inProp) : CppiaDynamicExpr(inSrc)
    {
       thisExpr = inThis;
@@ -2161,25 +2086,21 @@ struct CallGetField : public CppiaDynamicExpr
       isPropExpr = inProp;
    }
 
-   const char *getName() { return "__Field"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "__Field"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       thisExpr = thisExpr->link(inModule);
       nameExpr = nameExpr->link(inModule);
       isPropExpr = isPropExpr->link(inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = thisExpr->runObject(ctx);
       CPPIA_CHECK(obj);
       String name = nameExpr->runString(ctx);
       int isProp = isPropExpr->runInt(ctx);
-      #if (HXCPP_API_LEVEL>=330)
       return obj->__Field(name,(hx::PropertyAccess)isProp).asObject();
-      #else
-      return obj->__Field(name,(hx::PropertyAccess)isProp).mPtr;
-      #endif
    }
 };
 
@@ -2231,8 +2152,8 @@ struct CallMemberVTable : public CppiaExpr
 
       scriptVTableOffset = inScriptVTableOffset;
    }
-   const char *getName() { return "CallMemberVTable"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CallMemberVTable"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (thisExpr)
          thisExpr = thisExpr->link(inModule);
@@ -2245,11 +2166,12 @@ struct CallMemberVTable : public CppiaExpr
       boolResult = type->haxeClass==ClassOf<bool>();
       return this;
    }
-   ExprType getType() { return returnType; }
+   ExprType getType() HXCPP_OVERRIDE { return returnType; }
    // ScriptCallable **vtable = (ScriptCallable **)thisVal->__GetScriptVTable();
 
-   #define CALL_VTABLE_SETUP \
+   #define CALL_VTABLE_SETUP(errorValue) \
       hx::Object *thisVal = thisExpr ? thisExpr->runObject(ctx) : ctx->getThis(); \
+      BCR_CHECK_RET(errorValue); \
       CPPIA_CHECK(thisVal); \
       ScriptCallable **vtable = (!isInterfaceCall ? (*(ScriptCallable ***)((char *)thisVal +scriptVTableOffset)) : (ScriptCallable **) thisVal->__GetScriptVTable()); \
       unsigned char *pointer = ctx->pointer; \
@@ -2258,37 +2180,37 @@ struct CallMemberVTable : public CppiaExpr
       /* TODO */; \
       AutoStack save(ctx,pointer);
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
-      CALL_VTABLE_SETUP
+      CALL_VTABLE_SETUP()
       ctx->runVoid(func);
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
-      CALL_VTABLE_SETUP
-      return runContextConvertInt(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func); 
-   }
- 
-   Float runFloat(CppiaCtx *ctx)
-   {
-      CALL_VTABLE_SETUP
-      return runContextConvertFloat(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func); 
-   }
-   String runString(CppiaCtx *ctx)
-   {
-      CALL_VTABLE_SETUP
-      return runContextConvertString(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func); 
-   }
-   hx::Object *runObject(CppiaCtx *ctx)
-   {
-      CALL_VTABLE_SETUP
-      return runContextConvertObject(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func); 
+      CALL_VTABLE_SETUP(BCRReturn())
+      return runContextConvertInt(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func);
    }
 
-   bool isBoolInt() { return boolResult; }
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
+   {
+      CALL_VTABLE_SETUP(BCRReturn())
+      return runContextConvertFloat(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func);
+   }
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
+   {
+      CALL_VTABLE_SETUP(BCRReturn())
+      return runContextConvertString(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func);
+   }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
+   {
+      CALL_VTABLE_SETUP(BCRReturn())
+      return runContextConvertObject(ctx, checkInterfaceReturnType ? func->getReturnType() : returnType, func);
+   }
+
+   bool isBoolInt() HXCPP_OVERRIDE { return boolResult; }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       int framePos = compiler->getCurrentFrameSize();
       if (thisExpr)
@@ -2387,11 +2309,11 @@ struct ThisExpr : public CppiaDynamicExpr
    {
    }
 
-   const char *getName() { return "ThisExpr"; }
-   hx::Object *runObject(CppiaCtx *ctx) { return ctx->getThis(); }
+   const char *getName() HXCPP_OVERRIDE { return "ThisExpr"; }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return ctx->getThis(); }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       compiler->convert(sJitThis, etObject, inDest, destType);
    }
@@ -2407,8 +2329,8 @@ struct ClassOfExpr : public CppiaExprWithValue
    {
       typeId = stream.getInt();
    }
-   const char *getName() { return "ClassOfExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ClassOfExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       TypeData *type = inModule.types[typeId];
       if (type->cppiaClass)
@@ -2425,7 +2347,7 @@ struct CallGlobal : public CppiaExpr
 {
    int fieldId;
    Expressions args;
-  
+
    CallGlobal(CppiaStream &stream)
    {
       fieldId = stream.getInt();
@@ -2433,8 +2355,8 @@ struct CallGlobal : public CppiaExpr
       ReadExpressions(args,stream,n);
    }
 
-   const char *getName() { return "CallGlobal"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CallGlobal"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       String name = inModule.strings[fieldId];
       LinkExpressions(args,inModule);
@@ -2698,7 +2620,7 @@ struct FieldByName : public CppiaDynamicExpr
    CrementOp   crement;
    hx::Class   staticClass;
 
-   
+
    FieldByName(CppiaExpr *inSrc, CppiaExpr *inObject, hx::Class inStaticClass,
                String inName, AssignOp inAssign, CrementOp inCrement, CppiaExpr *inValue)
       : CppiaDynamicExpr(inSrc)
@@ -2711,8 +2633,8 @@ struct FieldByName : public CppiaDynamicExpr
       value = inValue;
    }
 
-   const char *getName() { return "FieldByName"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "FieldByName"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (value)
          value = value->link(inModule);
@@ -2722,7 +2644,7 @@ struct FieldByName : public CppiaDynamicExpr
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = object ? object->runObject(ctx) : staticClass.mPtr ? staticClass.mPtr : ctx->getThis(false);
       BCR_CHECK;
@@ -2782,7 +2704,7 @@ struct FieldByName : public CppiaDynamicExpr
    }
 
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       if (crement==coNone && assign==aoNone)
       {
@@ -2972,7 +2894,7 @@ struct GetFieldByName : public CppiaDynamicExpr
    bool        isInterface;
    bool        isStatic;
    hx::Class       staticClass;
-  
+
    GetFieldByName(CppiaStream &stream,bool isThisObject,bool inIsStatic=false)
    {
       classId = stream.getInt();
@@ -2994,9 +2916,9 @@ struct GetFieldByName : public CppiaDynamicExpr
       name.raw_ref() = 0;
       vtableSlot = -1;
    }
-   const char *getName() { return "GetFieldByName"; }
+   const char *getName() HXCPP_OVERRIDE { return "GetFieldByName"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (object)
          object = object->link(inModule);
@@ -3044,12 +2966,16 @@ struct GetFieldByName : public CppiaDynamicExpr
          }
          name = inModule.strings[nameId];
          const StaticInfo *info = staticClass->GetStaticStorage(name);
-         if (info && info->type!=hx::fsUnknown)
+
+         // Do not use a MemReference for static access to objects.
+         // If the object in question is a hx::Callable_obj, its pointer will be downcasted to a hx::Object* and then updated to a non callable_obj pointer.
+         // This leads to memory exceptions later when then trying to invoke that callable.
+         if (info && info->type!=hx::fsUnknown && info->type != fsObject)
          {
-            CppiaExpr *replace = createStaticAccess(this, info->type, info->address);
-            replace->link(inModule);
-            delete this;
-            return replace;
+             CppiaExpr* replace = createStaticAccess(this, info->type, info->address);
+             replace->link(inModule);
+             delete this;
+             return replace;
          }
       }
 
@@ -3062,7 +2988,7 @@ struct GetFieldByName : public CppiaDynamicExpr
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *instance = object ? object->runObject(ctx) : isStatic ? staticClass.mPtr : ctx->getThis(false);
       BCR_CHECK;
@@ -3071,7 +2997,7 @@ struct GetFieldByName : public CppiaDynamicExpr
       {
          //if (isInterface)
          //   instance = instance->__GetRealObject();
- 
+
          ScriptCallable **vtable = (ScriptCallable **)instance->__GetScriptVTable();
          ScriptCallable *func = vtable[vtableSlot];
          if (func==0)
@@ -3087,7 +3013,7 @@ struct GetFieldByName : public CppiaDynamicExpr
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       // TODO - interfaces
       if (object)
@@ -3140,14 +3066,14 @@ struct GetFieldByName : public CppiaDynamicExpr
       }
    }
    #endif
-  
-   CppiaExpr   *makeSetter(AssignOp inOp,CppiaExpr *inValue)
+
+   CppiaExpr   *makeSetter(AssignOp inOp,CppiaExpr *inValue) HXCPP_OVERRIDE
    {
       // delete this - remove markable?
       return new FieldByName(this, object, staticClass, name, inOp, coNone, inValue);
    }
 
-   CppiaExpr   *makeCrement(CrementOp inOp)
+   CppiaExpr   *makeCrement(CrementOp inOp) HXCPP_OVERRIDE
    {
       // delete this - remove markable?
       return new FieldByName(this, object, staticClass, name, aoNone, inOp, 0);
@@ -3161,7 +3087,7 @@ struct Call : public CppiaDynamicExpr
 {
    Expressions args;
    CppiaExpr   *func;
-  
+
    Call(CppiaStream &stream)
    {
       int argCount = stream.getInt();
@@ -3178,18 +3104,31 @@ struct Call : public CppiaDynamicExpr
    }
 
 
-   const char *getName() { return "Call"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "Call"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       func = func->link(inModule);
       LinkExpressions(args,inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *funcVal = func->runObject(ctx);
+      BCR_CHECK;
+
       CPPIA_CHECK_FUNC(funcVal);
+
       int size = args.size();
+#if (HXCPP_API_LEVEL>=500)
+      Array<Dynamic> argArray = Array_obj<Dynamic>::__new(size, size);
+      for (int s = 0; s < size; s++)
+      {
+          argArray[s] = args[s]->runObject(ctx);
+          BCR_CHECK;
+      }
+
+      return funcVal->__Run(argArray).mPtr;
+#else
       switch(size)
       {
          case 0:
@@ -3258,11 +3197,12 @@ struct Call : public CppiaDynamicExpr
 
             return funcVal->__Run(argArray).mPtr;
       }
+#endif
       return 0;
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       JitTemp functionObject(compiler, jtPointer);
       func->genCode(compiler, functionObject, etObject );
@@ -3298,7 +3238,7 @@ struct CallMember : public CppiaExpr
    CppiaExpr *thisExpr;
    Expressions args;
    bool    callSuperField;
-  
+
    CallMember(CppiaStream &stream,MemberCallType inCall)
    {
       classId = stream.getInt();
@@ -3346,8 +3286,8 @@ struct CallMember : public CppiaExpr
 
 
 
-   const char *getName() { return "CallMember"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CallMember"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (fieldId==0)
          return linkSuperCall(inModule);
@@ -3358,7 +3298,7 @@ struct CallMember : public CppiaExpr
       //CPPIALOG("  linking call %s::%s\n", type->name.out_str(), field.out_str());
 
       CppiaExpr *replace = 0;
-      
+
       if (type->arrayType)
       {
          replace = createArrayBuiltin(this, type->arrayType, thisExpr, field, args);
@@ -3397,7 +3337,6 @@ struct CallMember : public CppiaExpr
          }
 
          // Try interface function implemented in host only...
-         #if (HXCPP_API_LEVEL >= 330)
          if (!replace)
          {
             std::vector<ScriptNamedFunction *> &nativeInterfaceFuncs = type->cppiaClass->nativeInterfaceFunctions;
@@ -3411,8 +3350,6 @@ struct CallMember : public CppiaExpr
                }
             }
          }
-         #endif
-
       }
       if (!replace && type->haxeBase)
       {
@@ -3527,7 +3464,7 @@ inline hx::Object *CheckNotNull(hx::Object *inPtr)
    return inPtr;
 }
 
-template<typename T, int REFMODE> 
+template<typename T, int REFMODE>
 struct MemReference : public CppiaExpr
 {
    int  offset;
@@ -3566,49 +3503,49 @@ struct MemReference : public CppiaExpr
       offset = 0;
       pointer = inPointer;
    }
-   bool isBoolInt()
+   bool isBoolInt() HXCPP_OVERRIDE
    {
       return ExprTypeIsBool<T>::value;
    }
- 
-   ExprType getType()
+
+   ExprType getType() HXCPP_OVERRIDE
    {
       return (ExprType) ExprTypeOf<T>::value;
    }
-   const char *getName() { return "MemReference"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "MemReference"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (object)
          object = object->link(inModule);
       if (REFMODE==locAbsolute) // Only for string/object?
          inModule.markable.push_back(this);
- 
+
       return this;
    }
 
-   void mark(hx::MarkContext *__inCtx) { HX_MARK_MEMBER( *pointer ); }
+   void mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE { HX_MARK_MEMBER( *pointer ); }
 #ifdef HXCPP_VISIT_ALLOCS
-   void visit(hx::VisitContext *__inCtx) { HX_VISIT_MEMBER( *pointer ); }
+   void visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE { HX_VISIT_MEMBER( *pointer ); }
 #endif
 
 
-   void        runVoid(CppiaCtx *ctx) { }
-   int runInt(CppiaCtx *ctx)
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return ValToInt( MEMGETVAL );
    }
-   Float       runFloat(CppiaCtx *ctx)
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return ValToFloat( MEMGETVAL );
    }
-   ::String    runString(CppiaCtx *ctx) {
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T &t = MEMGETVAL;
       BCR_CHECK;
       if (isBoolInt())
          return ValToString( MEMGETVAL ? true : false );
       return ValToString(t);
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (isBoolInt())
          return Dynamic( MEMGETVAL ? true : false ).mPtr;
@@ -3618,7 +3555,7 @@ struct MemReference : public CppiaExpr
    #ifdef CPPIA_JIT
 
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
      if (REFMODE==locAbsolute)
      {
@@ -3658,8 +3595,8 @@ struct MemReference : public CppiaExpr
    #endif
 
 
-   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value);
-   CppiaExpr  *makeCrement(CrementOp inOp);
+   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value) HXCPP_OVERRIDE;
+   CppiaExpr  *makeCrement(CrementOp inOp) HXCPP_OVERRIDE;
 };
 
 
@@ -3770,8 +3707,10 @@ void genSetter(CppiaCompiler *compiler, const JitVal &ioValue, ExprType exprType
                compiler->mult(ioValue, sJitTempF0, ioValue,true);
             else
             {
-               compiler->mult(sJitTempF0, sJitTempF0, ioValue,true);
-               compiler->convert(sJitTempF0, etFloat, ioValue, exprType );
+               JitTemp fval(compiler, jtFloat);
+               compiler->convert(ioValue, exprType, fval, etFloat);
+               compiler->mult(sJitTempF0, sJitTempF0, fval, true);
+               compiler->convert(sJitTempF0, etFloat, ioValue, exprType);
             }
          }
          break;
@@ -3951,7 +3890,7 @@ void genWriteBarrier(CppiaCompiler *compiler, JitReg objVal, JitVal valuePtr)
 #endif
 
 
-template<typename T, int REFMODE, typename Assign> 
+template<typename T, int REFMODE, typename Assign>
 struct MemReferenceSetter : public CppiaExpr
 {
    int offset;
@@ -3969,21 +3908,21 @@ struct MemReferenceSetter : public CppiaExpr
       pointer = inSrc->pointer;
       value = inValue;
    }
-   ExprType getType()
+   ExprType getType() HXCPP_OVERRIDE
    {
       return (ExprType) ExprTypeOf<T>::value;
    }
 
-   const char *getName() { return "MemReferenceSetter"; }
+   const char *getName() HXCPP_OVERRIDE { return "MemReferenceSetter"; }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       T *t = MEMGETPTR;
       BCR_VCHECK;
       Assign::run( *t, ctx, value);
       MEM_WB_CHECK;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       T *t = MEMGETPTR;
       BCR_CHECK;
@@ -3991,7 +3930,7 @@ struct MemReferenceSetter : public CppiaExpr
       MEM_WB_CHECK;
       return val;
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       T *t = MEMGETPTR;
       BCR_CHECK;
@@ -3999,7 +3938,7 @@ struct MemReferenceSetter : public CppiaExpr
       MEM_WB_CHECK;
       return val;
    }
-   ::String runString(CppiaCtx *ctx)
+   ::String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       T *t = MEMGETPTR;
       BCR_CHECK;
@@ -4007,7 +3946,7 @@ struct MemReferenceSetter : public CppiaExpr
       MEM_WB_CHECK;
       return val;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       T *t = MEMGETPTR;
       BCR_CHECK;
@@ -4016,12 +3955,12 @@ struct MemReferenceSetter : public CppiaExpr
       return result.mPtr;
    }
 
-   void mark(hx::MarkContext *__inCtx) { HX_MARK_MEMBER( *pointer ); }
+   void mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE { HX_MARK_MEMBER( *pointer ); }
 #ifdef HXCPP_VISIT_ALLOCS
-   void visit(hx::VisitContext *__inCtx) { HX_VISIT_MEMBER( *pointer ); }
+   void visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE { HX_VISIT_MEMBER( *pointer ); }
 #endif
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (REFMODE==locAbsolute) // Only for string/object?
          inModule.markable.push_back(this);
@@ -4029,7 +3968,7 @@ struct MemReferenceSetter : public CppiaExpr
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       JitType targetType = sizeof(T)==1 ? jtByte : sizeof(T)==2 ? jtShort : getJitType(getType());
       bool useTemp =  targetType == jtByte || targetType==jtShort;
@@ -4136,7 +4075,7 @@ struct MemReferenceSetter : public CppiaExpr
 };
 
 
-template<typename T, int REFMODE> 
+template<typename T, int REFMODE>
 CppiaExpr *MemReference<T,REFMODE>::makeSetter(AssignOp op,CppiaExpr *value)
 {
    switch(op)
@@ -4258,13 +4197,13 @@ static hx::Object * SLJIT_CALL objPreDecWb(hx::Object *inObj,int inOffset)
 
 #endif
 
-template<typename T, int REFMODE,typename CREMENT> 
+template<typename T, int REFMODE,typename CREMENT>
 struct MemReferenceCrement : public CppiaExpr
 {
    int offset;
    T   *pointer;
    CppiaExpr *object;
-   const char *getName() { return "MemReferenceCrement"; }
+   const char *getName() HXCPP_OVERRIDE { return "MemReferenceCrement"; }
 
    MemReferenceCrement(MemReference<T,REFMODE> *inSrc) : CppiaExpr(inSrc)
    {
@@ -4272,31 +4211,31 @@ struct MemReferenceCrement : public CppiaExpr
       object = inSrc->object;
       pointer = inSrc->pointer;
    }
-   ExprType getType()
+   ExprType getType() HXCPP_OVERRIDE
    {
       return (ExprType) ExprTypeOf<T>::value;
    }
 
-   void        runVoid(CppiaCtx *ctx) {
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T *t = MEMGETPTR;
       CREMENT::run( *t );
       MEM_WB_CHECK;
    }
-   int runInt(CppiaCtx *ctx) {
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T *t = MEMGETPTR;
       BCR_CHECK;
       int result = ValToInt( CREMENT::run(*t) );
       MEM_WB_CHECK;
       return result;
    }
-   Float       runFloat(CppiaCtx *ctx) {
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T *t = MEMGETPTR;
       BCR_CHECK;
       Float result = ValToFloat( CREMENT::run(*t));
       MEM_WB_CHECK;
       return result;
    }
-   ::String    runString(CppiaCtx *ctx) {
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T *t = MEMGETPTR;
       BCR_CHECK;
       String result = ValToString( CREMENT::run(*t) );
@@ -4304,7 +4243,7 @@ struct MemReferenceCrement : public CppiaExpr
       return result;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx) {
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE {
       T *t = MEMGETPTR;
       BCR_CHECK;
       Dynamic result( CREMENT::run(*t) );
@@ -4313,12 +4252,12 @@ struct MemReferenceCrement : public CppiaExpr
    }
 
 
-   void mark(hx::MarkContext *__inCtx) { HX_MARK_MEMBER( *pointer ); }
+   void mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE { HX_MARK_MEMBER( *pointer ); }
 #ifdef HXCPP_VISIT_ALLOCS
-   void visit(hx::VisitContext *__inCtx) { HX_VISIT_MEMBER( *pointer ); }
+   void visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE { HX_VISIT_MEMBER( *pointer ); }
 #endif
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (REFMODE==locAbsolute) // Only for string/object?
          inModule.markable.push_back(this);
@@ -4327,7 +4266,7 @@ struct MemReferenceCrement : public CppiaExpr
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       CrementOp op = (CrementOp)CREMENT::OP;
       int diff =  op==coPostDec || op==coPreDec ? -1 : 1;
@@ -4484,7 +4423,7 @@ struct MemReferenceCrement : public CppiaExpr
 
 
 
-template<typename T, int REFMODE> 
+template<typename T, int REFMODE>
 CppiaExpr *MemReference<T,REFMODE>::makeCrement(CrementOp inOp)
 {
    switch(inOp)
@@ -4512,9 +4451,9 @@ struct MemStackFloatSetter : public CppiaExpr
    AssignOp op;
 
    MemStackFloatSetter(const CppiaExpr *inSrc, int inOffset, AssignOp inOp, CppiaExpr *inValue)
-      : CppiaExpr(inSrc), offset(inOffset), op(inOp), value(inValue){ } 
-   ExprType getType() { return etFloat; }
-   const char *getName() { return "MemStackFloatSetter"; }
+      : CppiaExpr(inSrc), offset(inOffset), op(inOp), value(inValue){ }
+   ExprType getType() HXCPP_OVERRIDE { return etFloat; }
+   const char *getName() HXCPP_OVERRIDE { return "MemStackFloatSetter"; }
 
    inline Float doRun(CppiaCtx *ctx)
    {
@@ -4538,11 +4477,11 @@ struct MemStackFloatSetter : public CppiaExpr
    }
 
 
-   void        runVoid(CppiaCtx *ctx) { doRun(ctx); }
-   int runInt(CppiaCtx *ctx) { return doRun(ctx); }
-   Float       runFloat(CppiaCtx *ctx) { return doRun(ctx); }
-   ::String    runString(CppiaCtx *ctx) { return ValToString(doRun(ctx)); }
-   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(doRun(ctx)).mPtr; }
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { doRun(ctx); }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { return doRun(ctx); }
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return doRun(ctx); }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToString(doRun(ctx)); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return Dynamic(doRun(ctx)).mPtr; }
 };
 
 
@@ -4552,9 +4491,9 @@ struct MemStackFloatCrement : public CppiaExpr
    CrementOp op;
 
    MemStackFloatCrement(const CppiaExpr *inSrc, int inOffset, CrementOp inOp)
-      : CppiaExpr(inSrc), offset(inOffset), op(inOp) { } 
-   ExprType getType() { return etFloat; }
-   const char *getName() { return "MemStackFloatCrement"; }
+      : CppiaExpr(inSrc), offset(inOffset), op(inOp) { }
+   ExprType getType() HXCPP_OVERRIDE { return etFloat; }
+   const char *getName() HXCPP_OVERRIDE { return "MemStackFloatCrement"; }
 
    inline Float doRun(CppiaCtx *ctx)
    {
@@ -4571,11 +4510,11 @@ struct MemStackFloatCrement : public CppiaExpr
       return v;
    }
 
-   void        runVoid(CppiaCtx *ctx) { doRun(ctx); }
-   int runInt(CppiaCtx *ctx) { return doRun(ctx); }
-   Float       runFloat(CppiaCtx *ctx) { return doRun(ctx); }
-   ::String    runString(CppiaCtx *ctx) { return ValToString(doRun(ctx)); }
-   hx::Object *runObject(CppiaCtx *ctx) { return Dynamic(doRun(ctx)).mPtr; }
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { doRun(ctx); }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { return doRun(ctx); }
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return doRun(ctx); }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToString(doRun(ctx)); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return Dynamic(doRun(ctx)).mPtr; }
 };
 
 
@@ -4587,47 +4526,46 @@ struct MemStackFloatReference : public CppiaExpr
    MemStackFloatReference(const CppiaExpr *inSrc, int inOffset)
       : CppiaExpr(inSrc), offset(inOffset) { }
 
-   ExprType getType() { return etFloat; }
-   const char *getName() { return "MemStackFloatReference"; }
-   CppiaExpr *link(CppiaModule &inModule) { return this; }
+   ExprType getType() HXCPP_OVERRIDE { return etFloat; }
+   const char *getName() HXCPP_OVERRIDE { return "MemStackFloatReference"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE { return this; }
 
-   void        runVoid(CppiaCtx *ctx) { }
-   int runInt(CppiaCtx *ctx) { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
-   Float  runFloat(CppiaCtx *ctx) { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
-   ::String    runString(CppiaCtx *ctx) { return ValToString( GetFloatAligned( ((char *)ctx->frame) + offset )); }
-   hx::Object *runObject(CppiaCtx *ctx)
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
+   Float  runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return GetFloatAligned( ((char *)ctx->frame) + offset ); }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToString( GetFloatAligned( ((char *)ctx->frame) + offset )); }
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return Dynamic( GetFloatAligned( ((char *)ctx->frame) + offset ) ).mPtr;
    }
 
-   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value)
+   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *value) HXCPP_OVERRIDE
    {
       return new MemStackFloatSetter(this, offset, op, value);
    }
-   CppiaExpr  *makeCrement(CrementOp inOp)
+   CppiaExpr  *makeCrement(CrementOp inOp) HXCPP_OVERRIDE
    {
       return new MemStackFloatCrement(this, offset, inOp);
    }
 };
 
 
-#if (HXCPP_API_LEVEL>=330)
 struct VirtualArrayLength : public CppiaIntExpr
 {
    CppiaExpr   *thisExpr;
-  
+
    VirtualArrayLength(CppiaExpr *inSrc, CppiaExpr *inThis) : CppiaIntExpr(inSrc)
    {
       thisExpr = inThis;
    }
 
-   const char *getName() { return "length"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "length"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       thisExpr = thisExpr->link(inModule);
       return this;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       cpp::VirtualArray_obj *obj = (cpp::VirtualArray_obj *)thisExpr->runObject(ctx);
       BCR_CHECK;
@@ -4640,7 +4578,7 @@ struct VirtualArrayLength : public CppiaIntExpr
    {
       return inVArray->get_length();
    }
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       thisExpr->genCode(compiler,sJitTemp0,etObject);
       compiler->callNative((void *)getLen, sJitTemp0.as(jtPointer));
@@ -4648,7 +4586,6 @@ struct VirtualArrayLength : public CppiaIntExpr
    }
    #endif
 };
-#endif
 
 
 struct GetFieldByLinkage : public CppiaExpr
@@ -4656,7 +4593,7 @@ struct GetFieldByLinkage : public CppiaExpr
    int         fieldId;
    int         typeId;
    CppiaExpr   *object;
-  
+
    GetFieldByLinkage(CppiaStream &stream,bool inThisObject)
    {
       typeId = stream.getInt();
@@ -4664,8 +4601,8 @@ struct GetFieldByLinkage : public CppiaExpr
       object = inThisObject ? 0 : createCppiaExpr(stream);
    }
 
-   const char *getName() { return "GetFieldByLinkage"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "GetFieldByLinkage"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       TypeData *type = inModule.types[typeId];
       String field = inModule.strings[fieldId];
@@ -4736,18 +4673,16 @@ struct GetFieldByLinkage : public CppiaExpr
 
       if (!replace && type->arrayType!=arrNotArray && field==HX_CSTRING("length"))
       {
-         #if (HXCPP_API_LEVEL>=330)
          if (type->arrayType==arrAny)
          {
             replace = new VirtualArrayLength(this,object);
          }
          else
-         #endif
          {
-         int offset = (int) offsetof( Array_obj<int>, length );
-         replace = object ?
-             (CppiaExpr*)new MemReference<int,locObj>(this,offset,object):
-             (CppiaExpr*)new MemReference<int,locThis>(this,offset);
+            int offset = (int) offsetof( Array_obj<int>, length );
+            replace = object ?
+               (CppiaExpr*)new MemReference<int,locObj>(this,offset,object):
+               (CppiaExpr*)new MemReference<int,locThis>(this,offset);
          }
       }
 
@@ -4800,32 +4735,32 @@ struct StringVal : public CppiaExprWithValue
    {
    }
 
-   ExprType getType() { return etString; }
+   ExprType getType() HXCPP_OVERRIDE { return etString; }
 
-   const char *getName() { return "StringVal"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "StringVal"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       strVal = inModule.strings[stringId];
       //CPPIALOG("Linked %d -> %s\n", stringId, strVal.out_str());
       return CppiaExprWithValue::link(inModule);
    }
-   ::String    runString(CppiaCtx *ctx)
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return strVal;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (!value.mPtr)
          value = strVal;
       return value.mPtr;
    }
 
-   void mark(hx::MarkContext *__inCtx)
+   void mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE
    {
       HX_MARK_MEMBER(value);
    }
 #ifdef HXCPP_VISIT_ALLOCS
-   void visit(hx::VisitContext *__inCtx)
+   void visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE
    {
       HX_VISIT_MEMBER(value);
    }
@@ -4833,12 +4768,12 @@ struct StringVal : public CppiaExprWithValue
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       switch(destType)
       {
          case etObject:
-           //TODO - GC! 
+           //TODO - GC!
            if (!value.mPtr)
               value = strVal;
            compiler->move(inDest, (void *) value.mPtr );
@@ -4868,21 +4803,21 @@ template<typename T>
 struct DataVal : public CppiaExprWithValue
 {
    T data;
-   
+
 
    DataVal(T inVal) : data(inVal)
    {
    }
-   const char *getName() { return "DataVal"; }
+   const char *getName() HXCPP_OVERRIDE { return "DataVal"; }
 
-   ExprType getType() { return (ExprType)ExprTypeOf<T>::value; }
+   ExprType getType() HXCPP_OVERRIDE { return (ExprType)ExprTypeOf<T>::value; }
 
-   void        runVoid(CppiaCtx *ctx) {  }
-   int runInt(CppiaCtx *ctx) { return ValToInt(data); }
-   Float       runFloat(CppiaCtx *ctx) { return ValToFloat(data); }
-   ::String    runString(CppiaCtx *ctx) { return ValToString(data); }
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE {  }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToInt(data); }
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToFloat(data); }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return ValToString(data); }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (!value.mPtr)
          value = Dynamic(data);
@@ -4893,7 +4828,7 @@ struct DataVal : public CppiaExprWithValue
    String stringConversion;
    double doubleConversion;
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       switch(destType)
       {
@@ -4929,18 +4864,18 @@ struct DataVal : public CppiaExprWithValue
 struct NullVal : public CppiaExpr
 {
    NullVal() { }
-   ExprType getType() { return etObject; }
-   const char *getName() { return "NullVal"; }
+   ExprType getType() HXCPP_OVERRIDE { return etObject; }
+   const char *getName() HXCPP_OVERRIDE { return "NullVal"; }
 
-   void        runVoid(CppiaCtx *ctx) {  }
-   int runInt(CppiaCtx *ctx) { return 0; }
-   Float       runFloat(CppiaCtx *ctx) { return 0.0; }
-   ::String    runString(CppiaCtx *ctx) { return null(); }
-   hx::Object  *runObject(CppiaCtx *ctx) { return 0; }
+   void        runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE {  }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE { return 0; }
+   Float       runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE { return 0.0; }
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE { return null(); }
+   hx::Object  *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE { return 0; }
 
-   
+
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest,ExprType destType) HXCPP_OVERRIDE
    {
       compiler->returnNull(inDest, destType);
    }
@@ -4963,8 +4898,8 @@ struct PosInfo : public CppiaExprWithValue
       classId = stream.getInt();
       methodId = stream.getInt();
    }
-   const char *getName() { return "PosInfo"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "PosInfo"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       String clazz = inModule.strings[classId];
       String file = inModule.strings[fileId];
@@ -4975,7 +4910,7 @@ struct PosInfo : public CppiaExprWithValue
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       // TODO GC
       compiler->move(inDest, (void *)value.mPtr );
@@ -5003,14 +4938,14 @@ struct ObjectDef : public CppiaDynamicExpr
       ReadExpressions(values,stream,fieldCount);
    }
 
-   const char *getName() { return "ObjectDef"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ObjectDef"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       data = &inModule;
       LinkExpressions(values,inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Anon result = hx::Anon_obj::Create();
       for(int i=0;i<fieldCount;i++)
@@ -5032,7 +4967,7 @@ struct ObjectDef : public CppiaDynamicExpr
       inAnon->Add(*inName, Dynamic(inValue), false );
    }
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JitTemp obj(compiler, jtPointer);
       compiler->callNative( (void *)createAnon );
@@ -5040,7 +4975,7 @@ struct ObjectDef : public CppiaDynamicExpr
       for(int i=0;i<fieldCount;i++)
       {
          values[i]->genCode(compiler, sJitArg2.as(jtPointer), etObject);
-         compiler->callNative( (void *)anonAdd, obj, (void *)&data->strings[stringIds[i]],sJitArg2); 
+         compiler->callNative( (void *)anonAdd, obj, (void *)&data->strings[stringIds[i]],sJitArg2);
       }
       if (destType!=etVoid && destType!=etNull)
          compiler->convert(obj,etObject,inDest,destType);
@@ -5061,8 +4996,8 @@ struct ArrayDef : public CppiaDynamicExpr
    }
 
 
-   const char *getName() { return "ArrayDef"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ArrayDef"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       TypeData *type = inModule.types[classId];
       arrayType = type->arrayType;
@@ -5075,13 +5010,13 @@ struct ArrayDef : public CppiaDynamicExpr
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int n = items.size();
       switch(arrayType)
       {
          case arrBool:
-            { 
+            {
             Array<bool> result = Array_obj<bool>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5091,7 +5026,7 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrUnsignedChar:
-            { 
+            {
             Array<unsigned char> result = Array_obj<unsigned char>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5101,7 +5036,7 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrInt:
-            { 
+            {
             Array<int> result = Array_obj<int>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5111,7 +5046,7 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrFloat:
-            { 
+            {
             Array<Float> result = Array_obj<Float>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5121,7 +5056,7 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrFloat32:
-            { 
+            {
             Array<float> result = Array_obj<float>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5131,7 +5066,7 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrString:
-            { 
+            {
             Array<String> result = Array_obj<String>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5142,7 +5077,6 @@ struct ArrayDef : public CppiaDynamicExpr
             return result.mPtr;
             }
          case arrAny:
-            #if (HXCPP_API_LEVEL>=330)
             {
             cpp::VirtualArray result = cpp::VirtualArray_obj::__new(n,n);
             for(int i=0;i<n;i++)
@@ -5152,11 +5086,8 @@ struct ArrayDef : public CppiaDynamicExpr
             }
             return result.mPtr;
             }
-            #else
-            // Fallthough...
-            #endif
          case arrObject:
-            { 
+            {
             Array<Dynamic> result = Array_obj<Dynamic>::__new(n,n);
             for(int i=0;i<n;i++)
             {
@@ -5173,7 +5104,7 @@ struct ArrayDef : public CppiaDynamicExpr
 
 
 #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       int n = items.size();
       switch(arrayType)
@@ -5429,14 +5360,14 @@ struct DynamicArrayI : public CppiaDynamicExpr
       assign = aoNone;
       crement = coNone;
    }
-   const char *getName() { return "DynamicArrayI"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "DynamicArrayI"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       object = object->link(inModule);
       index = index->link(inModule);
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = object->runObject(ctx);
       BCR_CHECK;
@@ -5484,20 +5415,20 @@ struct DynamicArrayI : public CppiaDynamicExpr
       obj->__SetItem(i,val1);
       return val1.mPtr;
    }
-   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *inValue)
+   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *inValue) HXCPP_OVERRIDE
    {
       assign = op;
       value = inValue;
       return this;
    }
-   CppiaExpr  *makeCrement(CrementOp inOp)
+   CppiaExpr  *makeCrement(CrementOp inOp) HXCPP_OVERRIDE
    {
       crement = inOp;
       return this;
    }
    #ifdef CPPIA_JIT
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JitTemp obj(compiler,jtPointer);
       object->genCode(compiler, obj, etObject);
@@ -5625,8 +5556,8 @@ struct ArrayAccessI : public CppiaDynamicExpr
       __set = 0;
    }
 
-   const char *getName() { return "ArrayAccessI"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ArrayAccessI"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (object)
          object = object->link(inModule);
@@ -5696,7 +5627,7 @@ struct ArrayAccessI : public CppiaDynamicExpr
       }
    }
 
-   
+
    template<typename T>
    void run(CppiaCtx *ctx,T &outValue)
    {
@@ -5806,7 +5737,7 @@ struct ArrayAccessI : public CppiaDynamicExpr
    #endif
    }
 
-   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *inValue)
+   CppiaExpr  *makeSetter(AssignOp op,CppiaExpr *inValue) HXCPP_OVERRIDE
    {
       if (op!=aoSet)
          throw "TODO - arrayAccess undefined setter";
@@ -5814,26 +5745,26 @@ struct ArrayAccessI : public CppiaDynamicExpr
       value = inValue;
       return this;
    }
-   CppiaExpr  *makeCrement(CrementOp inOp)
+   CppiaExpr  *makeCrement(CrementOp inOp) HXCPP_OVERRIDE
    {
       throw "TODO - arrayAccess makeCrement";
       crement = inOp;
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
       { null val; run(ctx,val); BCR_VCHECK; }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
       { int val; run(ctx,val); BCR_CHECK; return val; }
 
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
       { Float val; run(ctx,val); BCR_CHECK; return val; }
 
-   ::String    runString(CppiaCtx *ctx)
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE
       { String val; run(ctx,val); BCR_CHECK; return val; }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
       { Dynamic val; run(ctx,val); BCR_CHECK; return val.mPtr; }
 };
 
@@ -5858,9 +5789,9 @@ struct ArrayIExpr : public CppiaExpr
       assignOp = aoNone;
    }
 
-   const char *getName() { return "ArrayIExpr"; }
+   const char *getName() HXCPP_OVERRIDE { return "ArrayIExpr"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       TypeData *type = inModule.types[classId];
 
@@ -5909,26 +5840,22 @@ struct EnumIExpr : public CppiaDynamicExpr
       object = createCppiaExpr(stream);
    }
 
-   const char *getName() { return "EnumIExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "EnumIExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       object = object->link(inModule);
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *obj = object->runObject(ctx);
       BCR_CHECK;
-      #if (HXCPP_API_LEVEL>=330)
       return static_cast<EnumBase_obj *>(obj)->_hx_getParamI(index).mPtr;
-      #else
-      return obj->__EnumParams()[index].mPtr;
-      #endif
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       object->genCode(compiler, sJitTemp0, etObject);
       int offset = sizeof( EnumBase_obj ) + index*sizeof(cpp::Variant);
@@ -5955,7 +5882,7 @@ struct VarDecl : public CppiaVoidExpr
       }
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (init)
       {
@@ -5973,8 +5900,8 @@ struct VarDecl : public CppiaVoidExpr
       }
    }
 
-   const char *getName() { return "VarDecl"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "VarDecl"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       var.link(inModule);
       init = init ? init->link(inModule) : 0;
@@ -5984,7 +5911,7 @@ struct VarDecl : public CppiaVoidExpr
 
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JitFramePos pos(var.stackPos,var.expressionType);
       if (init)
@@ -6051,23 +5978,23 @@ struct TVars : public CppiaVoidExpr
             throw "Bad var decl";
       }
    }
-   const char *getName() { return "TVars"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "TVars"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       LinkExpressions(vars,inModule);
       return this;
    }
-   
-   void runVoid(CppiaCtx *ctx)
+
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       CppiaExpr **v = &vars[0];
       CppiaExpr **end = v + vars.size();
-      for(;v<end && !ctx->breakContReturn;v++)
+      for(;v<end && !ctx->breakContReturn && !ctx->exception;v++)
          (*v)->runVoid(ctx);
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       for(int v=0;v<vars.size();v++)
          vars[v]->genCode(compiler, JitVal(), etVoid );
@@ -6081,7 +6008,7 @@ struct ForExpr : public CppiaVoidExpr
    CppiaExpr *init;
    CppiaExpr *loop;
 
- 
+
    ForExpr(CppiaStream &stream)
    {
       var.fromStream(stream);
@@ -6089,8 +6016,8 @@ struct ForExpr : public CppiaVoidExpr
       loop = createCppiaExpr(stream);
    }
 
-   const char *getName() { return "ForExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ForExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       var.link(inModule);
       init = init->link(inModule);
@@ -6098,7 +6025,7 @@ struct ForExpr : public CppiaVoidExpr
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       hx::Object *iterator = init->runObject(ctx);
       CPPIA_CHECK(iterator);
@@ -6112,8 +6039,14 @@ struct ForExpr : public CppiaVoidExpr
 
       while(hasNext())
       {
+         if (ctx->exception)
+            return;
          var.set(ctx,getNext());
+         if (ctx->exception)
+            return;
          loop->runVoid(ctx);
+         if (ctx->exception)
+            return;
 
          if (ctx->breakContReturn)
          {
@@ -6132,7 +6065,7 @@ struct WhileExpr : public CppiaVoidExpr
    CppiaExpr *condition;
    CppiaExpr *loop;
 
- 
+
    WhileExpr(CppiaStream &stream)
    {
       isWhileDo = stream.getInt();
@@ -6140,15 +6073,15 @@ struct WhileExpr : public CppiaVoidExpr
       loop = createCppiaExpr(stream);
    }
 
-   const char *getName() { return "WhileExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "WhileExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       condition = condition->link(inModule);
       loop = loop->link(inModule);
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (isWhileDo && !condition->runInt(ctx))
          return;
@@ -6159,6 +6092,9 @@ struct WhileExpr : public CppiaVoidExpr
       {
          loop->runVoid(ctx);
 
+         if (ctx->exception)
+            break;
+
          if (ctx->breakContReturn)
          {
             if (ctx->breakContReturn & (bcrBreak|bcrReturn))
@@ -6167,13 +6103,13 @@ struct WhileExpr : public CppiaVoidExpr
             ctx->breakContReturn = 0;
          }
 
-         if (!condition->runInt(ctx) || ctx->breakContReturn)
+         if (!condition->runInt(ctx) || ctx->breakContReturn || ctx->exception)
             break;
       }
       ctx->breakContReturn &= ~bcrLoop;
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       LabelId oldCont = compiler->setContinuePos( compiler->addLabel() );
       QuickVec<JumpId> oldBreaks;
@@ -6215,7 +6151,7 @@ struct SwitchExpr : public CppiaExpr
    std::vector<Case> cases;
    CppiaExpr *defaultCase;
 
- 
+
    SwitchExpr(CppiaStream &stream)
    {
       caseCount = stream.getInt();
@@ -6231,8 +6167,8 @@ struct SwitchExpr : public CppiaExpr
       defaultCase = hasDefault ? createCppiaExpr(stream) : 0;
    }
 
-   const char *getName() { return "SwitchExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "SwitchExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       condition = condition->link(inModule);
       for(int i=0;i<caseCount;i++)
@@ -6282,14 +6218,14 @@ struct SwitchExpr : public CppiaExpr
      return defaultCase;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       CppiaExpr *body = getBody(ctx);
       BCR_VCHECK;
       if (body)
          body->runVoid(ctx);
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       CppiaExpr *body = getBody(ctx);
       BCR_CHECK;
@@ -6298,7 +6234,7 @@ struct SwitchExpr : public CppiaExpr
       return 0;
    }
 
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       CppiaExpr *body = getBody(ctx);
       BCR_CHECK;
@@ -6307,7 +6243,7 @@ struct SwitchExpr : public CppiaExpr
       return 0;
    }
 
-   ::String    runString(CppiaCtx *ctx)
+   ::String    runString(CppiaCtx *ctx) HXCPP_OVERRIDE
     {
       CppiaExpr *body = getBody(ctx);
       BCR_CHECK;
@@ -6316,7 +6252,7 @@ struct SwitchExpr : public CppiaExpr
       return String();
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       CppiaExpr *body = getBody(ctx);
       BCR_CHECK;
@@ -6332,7 +6268,7 @@ struct SwitchExpr : public CppiaExpr
       return Dynamic(o0) == Dynamic(o1);
    }
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       ExprType switchType = condition->getType();
       JitTemp test( compiler, switchType );
@@ -6426,7 +6362,7 @@ struct TryExpr : public CppiaVoidExpr
    CppiaExpr *body;
    std::vector<Catch> catches;
 
- 
+
    TryExpr(CppiaStream &stream)
    {
       catchCount = stream.getInt();
@@ -6439,8 +6375,8 @@ struct TryExpr : public CppiaVoidExpr
       }
    }
 
-   const char *getName() { return "TryExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "TryExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       body = body->link(inModule);
       for(int i=0;i<catchCount;i++)
@@ -6452,30 +6388,38 @@ struct TryExpr : public CppiaVoidExpr
       }
       return this;
    }
+
+   void handleException(CppiaCtx* ctx, Dynamic caught) {
+      //Class cls = caught.mPtr ? caught->__GetClass() : 0;
+      for(int i=0;i<catchCount;i++)
+      {
+         Catch &c = catches[i];
+         if ( c.type->isClassOf(caught) )
+         {
+            ctx->exception = nullptr;
+            HX_STACK_BEGIN_CATCH
+            c.var.set(ctx,caught);
+            c.body->runVoid(ctx);
+            return;
+         }
+      }
+      HX_STACK_DO_THROW(caught);
+   }
+
    // TODO - return types...
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       try
       {
          body->runVoid(ctx);
-         BCR_VCHECK;
       }
       catch(Dynamic caught)
       {
-         //Class cls = caught.mPtr ? caught->__GetClass() : 0;
-         for(int i=0;i<catchCount;i++)
-         {
-            Catch &c = catches[i];
-            if ( c.type->isClassOf(caught) )
-            {
-               HX_STACK_BEGIN_CATCH
-               c.var.set(ctx,caught);
-               c.body->runVoid(ctx);
-               return;
-            }
-         }
-         HX_STACK_DO_THROW(caught);
+         handleException(ctx,caught);
+         return;
       }
+      if (ctx->exception)
+         handleException(ctx,ctx->exception);
    }
 
    #ifdef CPPIA_JIT
@@ -6485,7 +6429,7 @@ struct TryExpr : public CppiaVoidExpr
       return inType->isClassOf(exception);
    }
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       ThrowList thisThrown;
       ThrowList *oldList = compiler->pushCatching(&thisThrown);
@@ -6553,10 +6497,10 @@ struct VarRef : public CppiaExpr
       store = fsUnknown;
    }
 
-   ExprType getType() { return type; }
+   ExprType getType() HXCPP_OVERRIDE { return type; }
 
-   const char *getName() { return "VarRef"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "VarRef"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       var = inModule.layout->findVar(varId);
       if (!var)
@@ -6643,14 +6587,14 @@ struct FlagBreak : public CppiaVoidExpr
    int flag;
 
    FlagBreak(int inFlag) : flag(inFlag) {  }
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       ctx->breakContReturn |= flag;
    }
-   const char *getName() { return flag==bcrBreak ? "Break" : "Continue"; }
+   const char *getName() HXCPP_OVERRIDE { return flag==bcrBreak ? "Break" : "Continue"; }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (flag==bcrBreak)
          compiler->addBreak();
@@ -6682,8 +6626,8 @@ struct RetVal : public CppiaVoidExpr
          value = 0;
    }
 
-   const char *getName() { return "RetVal"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "RetVal"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       if (value)
       {
@@ -6695,7 +6639,7 @@ struct RetVal : public CppiaVoidExpr
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       #ifdef DEBUG_RETURN_TYPE
       gLastRet = returnType;
@@ -6726,7 +6670,7 @@ struct RetVal : public CppiaVoidExpr
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (value)
       {
@@ -6755,10 +6699,10 @@ struct BinOp : public CppiaExpr
       type = etFloat;
    }
 
-   ExprType getType() { return type; }
+   ExprType getType() HXCPP_OVERRIDE { return type; }
 
-   const char *getName() =0;
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE =0;
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       left = left->link(inModule);
       right = right->link(inModule);
@@ -6769,13 +6713,13 @@ struct BinOp : public CppiaExpr
          type = etFloat;
       return this;
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (type==etInt)
          return Dynamic(runInt(ctx)).mPtr;
       return Dynamic(runFloat(ctx)).mPtr;
    }
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (type==etInt)
          return String(runInt(ctx));
@@ -6788,21 +6732,21 @@ struct OpMult : public BinOp
 {
    OpMult(CppiaStream &stream) : BinOp(stream) { }
 
-   const char *getName() { return "OpMult"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "OpMult"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int lval = left->runInt(ctx);
       BCR_CHECK;
       return lval * right->runInt(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
       return lval * right->runFloat(ctx);
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etVoid)
       {
@@ -6845,22 +6789,22 @@ struct OpMult : public BinOp
 struct OpSub : public BinOp
 {
    OpSub(CppiaStream &stream) : BinOp(stream) { }
-   const char *getName() { return "OpSub"; }
+   const char *getName() HXCPP_OVERRIDE { return "OpSub"; }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int lval = left->runInt(ctx);
       BCR_CHECK;
       return lval - right->runInt(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
       return lval - right->runFloat(ctx);
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etVoid)
       {
@@ -6904,22 +6848,22 @@ struct OpDiv : public BinOp
 {
    OpDiv(CppiaStream &stream) : BinOp(stream) { }
 
-   const char *getName() { return "OpDiv"; }
-   ExprType getType() { return etFloat; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "OpDiv"; }
+   ExprType getType() HXCPP_OVERRIDE { return etFloat; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       // Int division - if you use 'cast' - do as float then cast to int
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
       return lval / right->runFloat(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
       return lval / right->runFloat(ctx);
    }
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       BinOp::link(inModule);
       type = etFloat;
@@ -6927,7 +6871,7 @@ struct OpDiv : public BinOp
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etVoid)
       {
@@ -6963,19 +6907,19 @@ struct ThrowExpr : public CppiaVoidExpr
    {
       value = createCppiaExpr(stream);
    }
-   const char *getName() { return "ThrowExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "ThrowExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       value = value->link(inModule);
       return this;
    }
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       // HX_STACK_DO_THROW ?
       throw Dynamic( value->runObject(ctx) );
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       value->genCode(compiler, sJitCtx.star(jtPointer, offsetof(hx::StackContext,exception)), etObject);
       compiler->addThrow();
@@ -6990,18 +6934,18 @@ struct OpNot : public CppiaBoolExpr
    {
       value = createCppiaExpr(stream);
    }
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       value = value->link(inModule);
       return this;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return ! value->runInt(ctx);
    }
 
    #ifdef CPPIA_JIT
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       return value->genCompare(compiler, !inReverse, inLabel);
    }
@@ -7018,13 +6962,13 @@ struct OpAnd : public CppiaBoolExpr
       left = createCppiaExpr(stream);
       right = createCppiaExpr(stream);
    }
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       left = left->link(inModule);
       right = right->link(inModule);
       return this;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l =  left->runInt(ctx);
       BCR_CHECK;
@@ -7033,7 +6977,7 @@ struct OpAnd : public CppiaBoolExpr
 
 
    #ifdef CPPIA_JIT
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       if (inReverse)
       {
@@ -7079,7 +7023,7 @@ struct OpAnd : public CppiaBoolExpr
 struct OpOr : public OpAnd
 {
    OpOr(CppiaStream &stream) : OpAnd(stream) { }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l =  left->runInt(ctx);
       BCR_CHECK;
@@ -7088,7 +7032,7 @@ struct OpOr : public OpAnd
 
 
    #ifdef CPPIA_JIT
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       if (inReverse)
       {
@@ -7142,18 +7086,18 @@ struct BitNot : public CppiaIntExpr
    {
       left = createCppiaExpr(stream);
    }
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       left = left->link(inModule);
       return this;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return ~left->runInt(ctx);
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       left->genCode(compiler, sJitTemp0, etInt);
       if (destType==etInt)
@@ -7176,8 +7120,8 @@ struct BitOpBase : public CppiaIntExpr
       left = createCppiaExpr(stream);
       right = createCppiaExpr(stream);
    }
-   const char *getName() = 0;
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE = 0;
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       left = left->link(inModule);
       right = right->link(inModule);
@@ -7188,7 +7132,7 @@ struct BitOpBase : public CppiaIntExpr
    #ifdef CPPIA_JIT
    virtual BitOp getBitOp() = 0;
 
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       JitTemp tLeft(compiler, jtInt);
       left->genCode(compiler, tLeft, etInt);
@@ -7207,8 +7151,8 @@ struct BitOpBase : public CppiaIntExpr
 struct BitAnd : public BitOpBase
 {
    BitAnd(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitAnd"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitAnd"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
@@ -7216,22 +7160,22 @@ struct BitAnd : public BitOpBase
    }
 
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpAnd; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpAnd; }
    #endif
 };
 
 struct BitOr : public BitOpBase
 {
    BitOr(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitOr"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitOr"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
       return l | right->runInt(ctx);
    }
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpOr; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpOr; }
    #endif
 };
 
@@ -7239,15 +7183,15 @@ struct BitOr : public BitOpBase
 struct BitXOr : public BitOpBase
 {
    BitXOr(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitXOr"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitXOr"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
       return l ^ right->runInt(ctx);
    }
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpXOr; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpXOr; }
    #endif
 };
 
@@ -7255,15 +7199,15 @@ struct BitXOr : public BitOpBase
 struct BitUSR : public BitOpBase
 {
    BitUSR(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitUSR"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitUSR"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
       return  hx::UShr(l , right->runInt(ctx));
    }
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpUSR; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpUSR; }
    #endif
 };
 
@@ -7271,15 +7215,15 @@ struct BitUSR : public BitOpBase
 struct BitShiftR : public BitOpBase
 {
    BitShiftR(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitShiftR"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitShiftR"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
       return  l >> right->runInt(ctx);
    }
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpShiftR; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpShiftR; }
    #endif
 };
 
@@ -7287,15 +7231,15 @@ struct BitShiftR : public BitOpBase
 struct BitShiftL : public BitOpBase
 {
    BitShiftL(CppiaStream &stream) : BitOpBase(stream) { }
-   const char *getName() { return "BitShiftL"; }
-   int runInt(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "BitShiftL"; }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int l = left->runInt(ctx);
       BCR_CHECK;
       return  l << right->runInt(ctx);
    }
    #ifdef CPPIA_JIT
-   BitOp getBitOp() { return bitOpShiftL; }
+   BitOp getBitOp() HXCPP_OVERRIDE { return bitOpShiftL; }
    #endif
 };
 
@@ -7356,13 +7300,13 @@ struct SpecialAdd : public CppiaExpr
       left = inLeft;
       right = inRight;
    }
-   virtual const char *getName() { return "SpecialAdd"; }
-   void runVoid(CppiaCtx *ctx)
+   const char *getName() HXCPP_OVERRIDE { return "SpecialAdd"; }
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       left->runVoid(ctx);
       right->runVoid(ctx);
    }
-   String runString(CppiaCtx *ctx)
+   String runString(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (AS_DYNAMIC)
       {
@@ -7377,7 +7321,7 @@ struct SpecialAdd : public CppiaExpr
          return lval + right->runString(ctx);
       }
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (AS_DYNAMIC)
       {
@@ -7385,10 +7329,10 @@ struct SpecialAdd : public CppiaExpr
          BCR_CHECK;
          return (lval + Dynamic(right->runObject(ctx))).mPtr;
       }
- 
+
       return Dynamic(runString(ctx)).mPtr;
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (AS_DYNAMIC)
       {
@@ -7396,13 +7340,13 @@ struct SpecialAdd : public CppiaExpr
          BCR_CHECK;
          return (lval + Dynamic(right->runObject(ctx)))->__ToInt();
       }
- 
+
       left->runVoid(ctx);
       BCR_CHECK;
       right->runVoid(ctx);
       return 0;
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       if (AS_DYNAMIC)
       {
@@ -7410,14 +7354,14 @@ struct SpecialAdd : public CppiaExpr
          BCR_CHECK;
          return (lval + Dynamic(right->runObject(ctx)))->__ToDouble();
       }
- 
+
       left->runVoid(ctx);
       BCR_CHECK;
       right->runVoid(ctx);
       return 0;
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (!AS_DYNAMIC)
       {
@@ -7516,33 +7460,33 @@ struct OpNeg : public CppiaExpr
    {
       value = createCppiaExpr(stream);
    }
-   virtual const char *getName() { return "OpNeg"; }
+   const char *getName() HXCPP_OVERRIDE { return "OpNeg"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       value = value->link(inModule);
       type = value->getType()==etInt ? etInt : etFloat;
       return this;
    }
 
-   ExprType getType() { return type; }
+   ExprType getType() HXCPP_OVERRIDE { return type; }
 
-   void runVoid(CppiaCtx *ctx) { value->runVoid(ctx); }
-   int runInt(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE { value->runVoid(ctx); }
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return - value->runInt(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return - value->runFloat(ctx);
    }
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       return Dynamic(- value->runFloat(ctx)).mPtr;
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etInt)
       {
@@ -7572,9 +7516,9 @@ struct OpAdd : public BinOp
    {
    }
 
-   const char *getName() { return "Add"; }
+   const char *getName() HXCPP_OVERRIDE { return "Add"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       BinOp::link(inModule);
 
@@ -7595,26 +7539,26 @@ struct OpAdd : public BinOp
       return this;
    }
 
-   void runVoid(CppiaCtx *ctx)
+   void runVoid(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       left->runVoid(ctx);
       BCR_VCHECK;
       right->runVoid(ctx);
    }
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       int lval = left->runInt(ctx);
       BCR_CHECK;
       return lval + right->runInt(ctx);
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
       return lval + right->runFloat(ctx);
    }
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etVoid)
       {
@@ -7667,25 +7611,25 @@ struct OpMod : public BinOp
    OpMod(CppiaStream &stream) : BinOp(stream)
    {
    }
-   const char *getName() { return "OpMod"; }
+   const char *getName() HXCPP_OVERRIDE { return "OpMod"; }
 
    // Need this for /0 behaviour
-   ExprType getType() { return etFloat; }
+   ExprType getType() HXCPP_OVERRIDE { return etFloat; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       BinOp::link(inModule);
       type = etFloat;
       return this;
    }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       double lval = left->runFloat(ctx);
       BCR_CHECK;
       return hx::DoubleMod(lval,right->runFloat(ctx));
    }
-   Float runFloat(CppiaCtx *ctx)
+   Float runFloat(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       Float lval = left->runFloat(ctx);
       BCR_CHECK;
@@ -7693,7 +7637,7 @@ struct OpMod : public BinOp
    }
 
    #ifdef CPPIA_JIT
-   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType)
+   void genCode(CppiaCompiler *compiler, const JitVal &inDest, ExprType destType) HXCPP_OVERRIDE
    {
       if (destType==etVoid)
       {
@@ -7713,7 +7657,7 @@ struct OpMod : public BinOp
    #endif
 };
 
-struct CrementExpr : public CppiaExpr 
+struct CrementExpr : public CppiaExpr
 {
    CrementOp op;
    CppiaExpr *lvalue;
@@ -7723,8 +7667,8 @@ struct CrementExpr : public CppiaExpr
       op = inOp;
       lvalue = createCppiaExpr(stream);
    }
-   const char *getName() { return "CrementExpr"; }
-   CppiaExpr *link(CppiaModule &inModule)
+   const char *getName() HXCPP_OVERRIDE { return "CrementExpr"; }
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       lvalue = lvalue->link(inModule);
       CppiaExpr *replace = lvalue->makeCrement( op );
@@ -7740,7 +7684,7 @@ struct CrementExpr : public CppiaExpr
    }
 };
 
-struct OpCompareBase : public CppiaBoolExpr 
+struct OpCompareBase : public CppiaBoolExpr
 {
    enum CompareType { compFloat, compInt, compString, compDynamic };
 
@@ -7755,9 +7699,9 @@ struct OpCompareBase : public CppiaBoolExpr
       compareType = compDynamic;
    }
 
-   const char *getName() { return "OpCompare"; }
+   const char *getName() HXCPP_OVERRIDE { return "OpCompare"; }
 
-   CppiaExpr *link(CppiaModule &inModule)
+   CppiaExpr *link(CppiaModule &inModule) HXCPP_OVERRIDE
    {
       left = left->link(inModule);
       right = right->link(inModule);
@@ -7778,7 +7722,7 @@ struct OpCompareBase : public CppiaBoolExpr
       return this;
    }
 
-   hx::Object *runObject(CppiaCtx *ctx)
+   hx::Object *runObject(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       bool result = runInt(ctx);
       return Dynamic(result).mPtr;
@@ -7786,14 +7730,14 @@ struct OpCompareBase : public CppiaBoolExpr
 };
 
 template<typename COMPARE>
-struct OpCompare : public OpCompareBase 
+struct OpCompare : public OpCompareBase
 {
    COMPARE compare;
 
    OpCompare(CppiaStream &stream)
       : OpCompareBase(stream) { }
 
-   int runInt(CppiaCtx *ctx)
+   int runInt(CppiaCtx *ctx) HXCPP_OVERRIDE
    {
       switch(compareType)
       {
@@ -7844,7 +7788,7 @@ struct OpCompare : public OpCompareBase
    }
 
 
-   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel)
+   JumpId genCompare(CppiaCompiler *compiler,bool inReverse,LabelId inLabel) HXCPP_OVERRIDE
    {
       switch(compareType)
       {

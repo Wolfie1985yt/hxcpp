@@ -23,15 +23,10 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES EnumBase_obj : public hx::Object
 
 
    protected:
-      #if (HXCPP_API_LEVEL >= 330)
-         String  _hx_tag;
-         int     mFixedFields;
-         #ifdef HXCPP_SCRIPTABLE
-         struct CppiaClassInfo *classInfo; 
-         #endif
-      #else
-         String       tag;
-         DynamicArray mArgs;
+      String  _hx_tag;
+      int     mFixedFields;
+      #ifdef HXCPP_SCRIPTABLE
+      struct CppiaClassInfo *classInfo; 
       #endif
    public:
       HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdEnum };
@@ -52,24 +47,23 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES EnumBase_obj : public hx::Object
       static hx::ObjectPtr<hx::Class_obj> &__SGetClass();
 
 
-      String toString();
+      String toString() HXCPP_OVERRIDE;
 
       EnumBase_obj() : index(-1) { }
       EnumBase_obj(const null &inNull) : index(-1) { }
-      int __GetType() const { return vtEnum; }
+      int __GetType() const HXCPP_OVERRIDE { return vtEnum; }
       static Dynamic __CreateEmpty();
       static Dynamic __Create(DynamicArray inArgs);
       static void __boot();
 
-      void __Mark(hx::MarkContext *__inCtx);
+      void __Mark(hx::MarkContext *__inCtx) HXCPP_OVERRIDE;
       #ifdef HXCPP_VISIT_ALLOCS
-      void __Visit(hx::VisitContext *__inCtx);
+      void __Visit(hx::VisitContext *__inCtx) HXCPP_OVERRIDE;
       #endif
 
       static hx::ObjectPtr<EnumBase_obj> Resolve(String inName);
       inline static bool __GetStatic(const ::String &inName, Dynamic &outValue, hx::PropertyAccess inCallProp) { return false; }
 
-      #if (HXCPP_API_LEVEL >= 330)
       inline cpp::Variant *_hx_getFixed() { return (cpp::Variant *)(this + 1); }
       inline const cpp::Variant *_hx_getFixed() const { return (cpp::Variant *)(this + 1); }
       inline ::Dynamic __Param(int inID) { return _hx_getFixed()[inID]; }
@@ -104,7 +98,7 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES EnumBase_obj : public hx::Object
       inline ::Dynamic _hx_getParamI(int inId) { return _hx_getFixed()[inId]; }
       inline int _hx_getParamCount() { return mFixedFields; }
       // Alias for _hx_getParamI
-      Dynamic __GetItem(int inIndex) const;
+      Dynamic __GetItem(int inIndex) const HXCPP_OVERRIDE;
 
       // For legacy
       inline String __Tag() const { return _hx_tag; }
@@ -112,22 +106,9 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES EnumBase_obj : public hx::Object
 
       String _hx_getTag() const { return _hx_tag; }
       int _hx_getIndex() const { return index; }
-      #else
-      Dynamic __Param(int inID) { return mArgs[inID]; }
-      DynamicArray __EnumParams() { return mArgs; }
-      String __Tag() const { return tag; }
-      int __Index() const { return index; }
-
-      void __Set( const String &inName,int inIndex,DynamicArray inArgs)
-      {
-         tag = inName;
-         index = inIndex;
-         mArgs = inArgs;
-      }
-      #endif
 
 
-      int __Compare(const hx::Object *inRHS) const;
+      int __Compare(const hx::Object *inRHS) const HXCPP_OVERRIDE;
 
       virtual String GetEnumName( ) const { return HX_CSTRING("Enum"); }
 };
@@ -143,7 +124,6 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES bool __hxcpp_enum_eq( ::hx::EnumBase a,  ::hx::Enu
 // Template function to return a strongly-typed version fo the Enum.
 // Most of the common stuff is in "Set".
 
-#if (HXCPP_API_LEVEL >= 330)
 template<typename ENUM>
 ENUM *CreateEnum(const String &inName,int inIndex, int inFields)
 {
@@ -161,34 +141,16 @@ ENUM *CreateConstEnum(const String &inName,int inIndex)
    return result;
 }
 
-
-#else
-template<typename ENUM>
-hx::ObjectPtr<ENUM> CreateEnum(const String &inName,int inIndex, DynamicArray inArgs=DynamicArray())
-{
-   ENUM *result = new ENUM;
-   result->__Set(inName,inIndex,inArgs);
-   return result;
-}
-#endif
-
 } // end namespace hx
 
-#if (HXCPP_API_LEVEL >= 330)
 inline int _hx_getEnumValueIndex(hx::EnumBase inEnum)
 {
    return inEnum->_hx_getIndex();
 }
-#endif
 
 inline void __hxcpp_enum_force(hx::EnumBase inEnum,String inForceName, int inIndex)
 {
-   #if (HXCPP_API_LEVEL >= 330)
    inEnum->_hx_setIdentity(inForceName, inIndex,0);
-   #else
-   hx::DynamicArray empty;
-   inEnum->__Set(inForceName, inIndex, empty);
-   #endif
 }
 
 
