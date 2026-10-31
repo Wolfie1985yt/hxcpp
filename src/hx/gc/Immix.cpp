@@ -3497,7 +3497,7 @@ public:
       int n = 1<<IMMIX_BLOCK_GROUP_BITS;
 
 
-      if (!mAllBlocks.safeReserveExtra(n) || !mFreeBlocks.safeReserveExtra(n))
+      if (!mAllBlocks.safeReserveExtra(n) || !mFreeBlocks.hasExtraCapacity(n))
       {
          outForceCompact = true;
          return false;
